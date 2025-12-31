@@ -1,0 +1,5 @@
+pandas
+openpyxl
+flask
+flask-sqlalchemy
+reportlab
