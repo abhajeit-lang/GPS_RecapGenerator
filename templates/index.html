@@ -287,6 +287,7 @@
                 <label for="reportType">Type de Rapport</label>
                 <select id="reportType" onchange="updateQueryUI()">
                     <option value="date">Par Date Spécifique</option>
+                    <option value="week">Par Semaine</option>
                     <option value="month">Par Mois</option>
                 </select>
             </div>
@@ -312,6 +313,14 @@
                     <input type="date" id="dateInput">
                 </div>
                 <button onclick="generateByDate()">📅 Générer le Rapport Quotidien</button>
+            </div>
+            
+            <div id="weekQueryUI" style="display:none;">
+                <div class="form-group">
+                    <label for="weekInput">Sélectionner une Semaine</label>
+                    <input type="week" id="weekInput">
+                </div>
+                <button onclick="generateByWeek()">📅 Générer le Rapport Hebdomadaire</button>
             </div>
             
             <div id="monthQueryUI" style="display:none;">
@@ -359,9 +368,15 @@
             const reportType = document.getElementById('reportType').value;
             if (reportType === 'date') {
                 document.getElementById('dateQueryUI').style.display = 'block';
+                document.getElementById('weekQueryUI').style.display = 'none';
+                document.getElementById('monthQueryUI').style.display = 'none';
+            } else if (reportType === 'week') {
+                document.getElementById('dateQueryUI').style.display = 'none';
+                document.getElementById('weekQueryUI').style.display = 'block';
                 document.getElementById('monthQueryUI').style.display = 'none';
             } else {
                 document.getElementById('dateQueryUI').style.display = 'none';
+                document.getElementById('weekQueryUI').style.display = 'none';
                 document.getElementById('monthQueryUI').style.display = 'block';
             }
         }
@@ -657,6 +672,42 @@
                     const formatLabel = format.toUpperCase();
                     document.getElementById('queryFileInfo').innerHTML = 
                         `<strong>✓ Report Generated (${formatLabel})!</strong><br>Month: ${year}-${monthNum}<br>Vehicles: ${data.rows}`;
+                    showQueryMessage(data.message, 'success');
+                    document.getElementById('queryDownloadSection').style.display = 'block';
+                } else {
+                    showQueryMessage('Error: ' + data.error, 'error');
+                }
+            });
+        }
+        
+        function generateByWeek() {
+            const week = document.getElementById('weekInput').value;
+            const format = document.getElementById('reportFormat').value;
+            
+            if (!week) {
+                showQueryMessage('Veuillez sélectionner une semaine', 'error');
+                return;
+            }
+            
+            const [year, weekNum] = week.split('-W');
+            
+            showQueryLoading(true);
+            hideQueryMessage();
+            document.getElementById('queryDownloadSection').style.display = 'none';
+            
+            fetch('/report/by-week', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({year: parseInt(year), week: parseInt(weekNum), format: format})
+            })
+            .then(r => r.json())
+            .then(data => {
+                showQueryLoading(false);
+                if (data.success) {
+                    currentFilename = data.filename;
+                    const formatLabel = format.toUpperCase();
+                    document.getElementById('queryFileInfo').innerHTML = 
+                        `<strong>✓ Report Generated (${formatLabel})!</strong><br>Week: ${year}-W${weekNum.toString().padStart(2, '0')}<br>Records: ${data.rows}`;
                     showQueryMessage(data.message, 'success');
                     document.getElementById('queryDownloadSection').style.display = 'block';
                 } else {

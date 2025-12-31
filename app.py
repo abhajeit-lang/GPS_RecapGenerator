@@ -276,6 +276,99 @@ def report_by_month():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@app.route('/report/by-week', methods=['POST'])
+def report_by_week():
+    """Generate report for a specific week (ISO 8601 week number)."""
+    try:
+        from datetime import datetime, timedelta
+        
+        data = request.json
+        year = data.get('year')
+        week = data.get('week')
+        format_type = data.get('format', 'csv').lower()  # 'csv' or 'pdf'
+        
+        if not year or not week:
+            return jsonify({'error': 'Year and week are required'}), 400
+        
+        # Calculate start and end dates for the ISO week
+        # ISO 8601: Week 1 is the week with the first Thursday
+        jan4 = datetime(year, 1, 4)
+        week_one_monday = jan4 - timedelta(days=jan4.weekday())
+        week_start = week_one_monday + timedelta(weeks=week-1)
+        week_end = week_start + timedelta(days=6)
+        
+        week_start_str = week_start.strftime('%Y-%m-%d')
+        week_end_str = week_end.strftime('%Y-%m-%d')
+        
+        # Query database for this week
+        records = VehicleActivity.query.filter(
+            VehicleActivity.date >= week_start_str,
+            VehicleActivity.date <= week_end_str
+        ).all()
+        
+        if not records:
+            return jsonify({'error': f'No records found for week {week} of {year}'}), 404
+        
+        # Aggregate by vehicle
+        summary = {}
+        for record in records:
+            vehicle = record.vehicle_code
+            if vehicle not in summary:
+                summary[vehicle] = {
+                    'hours_before_20h': 0.0,
+                    'hours_after_20h': 0.0,
+                    'km_before': 0.0,
+                    'km_after': 0.0
+                }
+            summary[vehicle]['hours_before_20h'] += record.hours_before_20h
+            summary[vehicle]['hours_after_20h'] += record.hours_after_20h
+            summary[vehicle]['km_before'] += record.km_before
+            summary[vehicle]['km_after'] += record.km_after
+        
+        # Get vehicle details for report
+        vehicles_dict = {}
+        all_vehicles = Vehicle.query.all()
+        for v in all_vehicles:
+            vehicles_dict[v.id] = v
+        
+        if format_type == 'pdf':
+            # Generate PDF with aggregated summary
+            pdf_buffer = generate_pdf_report_by_week(year, week, week_start_str, week_end_str, summary, vehicles_dict)
+            output_folder = Path(app.config['OUTPUT_FOLDER'])
+            filename = f"report_{year:04d}-W{week:02d}.pdf"
+            filepath = output_folder / filename
+            with open(filepath, 'wb') as f:
+                f.write(pdf_buffer.getvalue())
+        else:
+            # Generate CSV
+            data_list = []
+            for vehicle, metrics in summary.items():
+                data_list.append({
+                    'year_week': f'{year:04d}-W{week:02d}',
+                    'week_start': week_start_str,
+                    'week_end': week_end_str,
+                    'vehicle': vehicle,
+                    'hours_before_20h': round(metrics['hours_before_20h'], 2),
+                    'hours_after_20h': round(metrics['hours_after_20h'], 2),
+                    'km_before': round(metrics['km_before'], 3),
+                    'km_after': round(metrics['km_after'], 3)
+                })
+            
+            report_df = pd.DataFrame(data_list)
+            output_folder = Path(app.config['OUTPUT_FOLDER'])
+            filename = f"report_{year:04d}-W{week:02d}.csv"
+            filepath = output_folder / filename
+            report_df.to_csv(filepath, index=False)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Report generated for week {week} of {year}',
+            'filename': filename,
+            'rows': len(records)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/download/<filename>')
 def download_file(filename):
     try:
@@ -578,6 +671,108 @@ def generate_pdf_report_by_month(year, month, summary, vehicles_dict):
         if category not in categories_dict:
             categories_dict[category] = {}
         categories_dict[category][vehicle_code] = metrics
+    
+    # Create tables for each category
+    for category in sorted(categories_dict.keys()):
+        story.append(Paragraph(f'<b>{category}</b>', styles['Heading2']))
+        
+        # Table data with formatted cells
+        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 20:00\n(Heures)', 'Après 20:00\n(Heures)', 'Avant 20:00\n(KM)', 'Après 20:00\n(KM)']]
+        
+        for vehicle_code in sorted(categories_dict[category].keys()):
+            metrics = categories_dict[category][vehicle_code]
+            vehicle_obj = vehicles_dict.get(vehicle_code)
+            vehicle_name = vehicle_obj.name if vehicle_obj else '-'
+            matricule = f'<font size="8">{vehicle_obj.matricule if vehicle_obj else "-"}</font>'
+            
+            table_data.append([
+                vehicle_code,
+                vehicle_name,
+                Paragraph(matricule, styles['Normal']),
+                f"{metrics['hours_before_20h']:.2f}",
+                f"{metrics['hours_after_20h']:.2f}",
+                f"{metrics['km_before']:.2f}",
+                f"{metrics['km_after']:.2f}"
+            ])
+        
+        # Add totals row
+        total_hours_before = sum(m['hours_before_20h'] for m in categories_dict[category].values())
+        total_hours_after = sum(m['hours_after_20h'] for m in categories_dict[category].values())
+        total_km_before = sum(m['km_before'] for m in categories_dict[category].values())
+        total_km_after = sum(m['km_after'] for m in categories_dict[category].values())
+        
+        table_data.append([
+            'TOTAL',
+            '', '',
+            f"{total_hours_before:.2f}",
+            f"{total_hours_after:.2f}",
+            f"{total_km_before:.2f}",
+            f"{total_km_after:.2f}"
+        ])
+        
+        # Style table with proper column widths
+        table = Table(table_data, colWidths=[0.9*inch, 2.2*inch, 1.1*inch, 0.95*inch, 0.95*inch, 0.95*inch, 0.95*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E7E6E6')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F2F2F2')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6)
+        ]))
+        
+        story.append(table)
+        story.append(Spacer(1, 0.3*inch))
+    
+    doc.build(story)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+def generate_pdf_report_by_week(year, week, week_start, week_end, summary, vehicles_dict):
+    """Generate a professional PDF report for a specific week."""
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#2c3e50'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    story = []
+    
+    # Title
+    story.append(Paragraph('📊 RAPPORT D\'ACTIVITÉ HEBDOMADAIRE', title_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Date info
+    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER)
+    story.append(Paragraph(f'<b>Semaine:</b> {year}-W{week:02d} ({week_start} à {week_end})', info_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Group by category
+    categories_dict = {}
+    for vehicle_code in summary.keys():
+        vehicle_obj = vehicles_dict.get(vehicle_code)
+        category = vehicle_obj.category if vehicle_obj else 'Unknown'
+        
+        if category not in categories_dict:
+            categories_dict[category] = {}
+        categories_dict[category][vehicle_code] = summary[vehicle_code]
     
     # Create tables for each category
     for category in sorted(categories_dict.keys()):
