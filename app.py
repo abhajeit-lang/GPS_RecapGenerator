@@ -376,7 +376,7 @@ def report_by_week():
             'success': True,
             'message': f'Report generated for week {week} of {year}',
             'filename': filename,
-            'rows': len(records)
+            'rows': len(summary)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 400
