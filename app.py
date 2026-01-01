@@ -252,16 +252,17 @@ def report_by_month():
         for v in all_vehicles:
             vehicles_dict[v.id] = v
         
+        output_folder = Path(app.config['OUTPUT_FOLDER'])
+        
         if format_type == 'pdf':
             # Generate PDF
             pdf_buffer = generate_pdf_report_by_month(year, month, summary, vehicles_dict)
-            output_folder = Path(app.config['OUTPUT_FOLDER'])
             filename = f"report_{year:04d}-{month:02d}.pdf"
             filepath = output_folder / filename
             with open(filepath, 'wb') as f:
                 f.write(pdf_buffer.getvalue())
         else:
-            # Generate CSV (original behavior)
+            # Generate CSV
             data_list = []
             for vehicle, metrics in summary.items():
                 data_list.append({
@@ -274,16 +275,9 @@ def report_by_month():
                 })
             
             report_df = pd.DataFrame(data_list)
-            output_folder = Path(app.config['OUTPUT_FOLDER'])
             filename = f"report_{year:04d}-{month:02d}.csv"
             filepath = output_folder / filename
             report_df.to_csv(filepath, index=False)
-        
-
-        output_folder = Path(app.config['OUTPUT_FOLDER'])
-        filename = f"report_{year:04d}-{month:02d}.csv"
-        filepath = output_folder / filename
-        report_df.to_csv(filepath, index=False)
         
         return jsonify({
             'success': True,
