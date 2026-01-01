@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
-from report_logic import load_file, process_dataframe, generate_reports
+from report_logic import load_file, process_dataframe, generate_reports, format_decimal_hours
 from models import db, VehicleActivity, Vehicle
 import tempfile
 from datetime import datetime
@@ -67,43 +67,61 @@ def upload_file():
         df = load_file(filepath)
         processed = process_dataframe(df, include_date=True)
         
-        # Store in database
+        # First, check for duplicate dates
+        dates_to_add = set()
+        dates_existing = set()
+        
+        for _, row in processed.iterrows():
+            vehicle = row['vehicle']
+            day_map = row['day_map']
+            if day_map:
+                for (year, month, day), metrics in day_map.items():
+                    date_obj = datetime(year, month, day).date()
+                    dates_to_add.add(date_obj)
+                    
+                    # Check if this date-vehicle combo already exists
+                    existing = VehicleActivity.query.filter_by(
+                        date=date_obj,
+                        vehicle_code=vehicle
+                    ).first()
+                    
+                    if existing:
+                        dates_existing.add(date_obj)
+        
+        # If any dates already exist, return warning
+        if dates_existing:
+            existing_dates_str = ', '.join([d.isoformat() for d in sorted(dates_existing)])
+            return jsonify({
+                'error': 'Duplicate Upload Prevented',
+                'message': f'The following date(s) are already in the database and will NOT be re-uploaded:\n\n{existing_dates_str}\n\nTo re-upload this data, please delete the existing records first.',
+                'duplicate': True,
+                'existing_dates': [d.isoformat() for d in sorted(dates_existing)]
+            }), 409
+        
+        # Store in database only new records
         stored_count = 0
         for _, row in processed.iterrows():
             vehicle = row['vehicle']
             day_map = row['day_map']
             if day_map:
                 for (year, month, day), metrics in day_map.items():
-                    # Check if record already exists
-                    existing = VehicleActivity.query.filter_by(
+                    # Create new record (we already checked above)
+                    activity = VehicleActivity(
                         date=datetime(year, month, day).date(),
-                        vehicle_code=vehicle
-                    ).first()
-                    
-                    if existing:
-                        # Update existing record
-                        existing.hours_before_20h = metrics['before_sec'] / 3600
-                        existing.hours_after_20h = metrics['after_sec'] / 3600
-                        existing.km_before = metrics['km_before']
-                        existing.km_after = metrics['km_after']
-                    else:
-                        # Create new record
-                        activity = VehicleActivity(
-                            date=datetime(year, month, day).date(),
-                            vehicle_code=vehicle,
-                            hours_before_20h=metrics['before_sec'] / 3600,
-                            hours_after_20h=metrics['after_sec'] / 3600,
-                            km_before=metrics['km_before'],
-                            km_after=metrics['km_after']
-                        )
-                        db.session.add(activity)
+                        vehicle_code=vehicle,
+                        hours_before_20h=metrics['before_sec'] / 3600,
+                        hours_after_20h=metrics['after_sec'] / 3600,
+                        km_before=metrics['km_before'],
+                        km_after=metrics['km_after']
+                    )
+                    db.session.add(activity)
                     stored_count += 1
         
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': f'Stored {stored_count} records in database.',
+            'message': f'✓ Successfully stored {stored_count} new records in database.',
             'records': stored_count
         })
     except Exception as e:
@@ -584,8 +602,8 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
                 record.vehicle_code,
                 vehicle_name,
                 Paragraph(matricule, styles['Normal']),
-                f"{record.hours_before_20h:.2f}",
-                f"{record.hours_after_20h:.2f}",
+                format_decimal_hours(record.hours_before_20h),
+                format_decimal_hours(record.hours_after_20h),
                 f"{record.km_before:.2f}",
                 f"{record.km_after:.2f}"
             ])
@@ -599,8 +617,8 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
         table_data.append([
             'TOTAL',
             '', '',
-            f"{total_hours_before:.2f}",
-            f"{total_hours_after:.2f}",
+            format_decimal_hours(total_hours_before),
+            format_decimal_hours(total_hours_after),
             f"{total_km_before:.2f}",
             f"{total_km_after:.2f}"
         ])
@@ -689,8 +707,8 @@ def generate_pdf_report_by_month(year, month, summary, vehicles_dict):
                 vehicle_code,
                 vehicle_name,
                 Paragraph(matricule, styles['Normal']),
-                f"{metrics['hours_before_20h']:.2f}",
-                f"{metrics['hours_after_20h']:.2f}",
+                format_decimal_hours(metrics['hours_before_20h']),
+                format_decimal_hours(metrics['hours_after_20h']),
                 f"{metrics['km_before']:.2f}",
                 f"{metrics['km_after']:.2f}"
             ])
@@ -704,8 +722,8 @@ def generate_pdf_report_by_month(year, month, summary, vehicles_dict):
         table_data.append([
             'TOTAL',
             '', '',
-            f"{total_hours_before:.2f}",
-            f"{total_hours_after:.2f}",
+            format_decimal_hours(total_hours_before),
+            format_decimal_hours(total_hours_after),
             f"{total_km_before:.2f}",
             f"{total_km_after:.2f}"
         ])
@@ -791,8 +809,8 @@ def generate_pdf_report_by_week(year, week, week_start, week_end, summary, vehic
                 vehicle_code,
                 vehicle_name,
                 Paragraph(matricule, styles['Normal']),
-                f"{metrics['hours_before_20h']:.2f}",
-                f"{metrics['hours_after_20h']:.2f}",
+                format_decimal_hours(metrics['hours_before_20h']),
+                format_decimal_hours(metrics['hours_after_20h']),
                 f"{metrics['km_before']:.2f}",
                 f"{metrics['km_after']:.2f}"
             ])
@@ -806,8 +824,8 @@ def generate_pdf_report_by_week(year, week, week_start, week_end, summary, vehic
         table_data.append([
             'TOTAL',
             '', '',
-            f"{total_hours_before:.2f}",
-            f"{total_hours_after:.2f}",
+            format_decimal_hours(total_hours_before),
+            format_decimal_hours(total_hours_after),
             f"{total_km_before:.2f}",
             f"{total_km_after:.2f}"
         ])

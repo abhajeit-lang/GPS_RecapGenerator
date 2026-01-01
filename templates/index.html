@@ -130,6 +130,15 @@
             border: 1px solid #f5c6cb;
             display: block;
         }
+        .message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            display: block;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+        }
         .loading {
             display: none;
             text-align: center;
@@ -597,11 +606,15 @@
                 showUploadLoading(false);
                 
                 if (response.ok) {
-                    showUploadMessage('✓ ' + data.message + ` Stored ${data.records} records.`, 'success');
+                    showUploadMessage(data.message, 'success');
                     fileInput.value = '';
                     loadAvailableDates();
+                } else if (response.status === 409) {
+                    // Duplicate upload - show warning
+                    const msg = `⚠️ ${data.error}\n\n${data.message}`;
+                    showUploadMessage(msg, 'warning');
                 } else {
-                    showUploadMessage('Error: ' + data.error, 'error');
+                    showUploadMessage('Error: ' + data.error + '\n\n' + (data.message || ''), 'error');
                 }
             } catch (error) {
                 showUploadLoading(false);

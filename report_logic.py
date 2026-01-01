@@ -7,6 +7,28 @@ import re
 REF_HOUR = 20
 
 
+def format_decimal_hours(decimal_hours):
+    """Convert decimal hours to 'XhYmin' format.
+    Example: 0.80 -> '48min', 1.33 -> '1h20min'
+    """
+    if not decimal_hours or decimal_hours == 0:
+        return '0min'
+    
+    hours = int(decimal_hours)
+    minutes = round((decimal_hours - hours) * 60)
+    
+    if minutes == 60:
+        hours += 1
+        minutes = 0
+    
+    if hours == 0:
+        return f'{minutes}min'
+    elif minutes == 0:
+        return f'{hours}h'
+    else:
+        return f'{hours}h{minutes}min'
+
+
 def load_file(path: Path):
     path = Path(path)
     if not path.exists():
