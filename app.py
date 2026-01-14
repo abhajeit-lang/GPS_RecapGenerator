@@ -585,7 +585,7 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
         story.append(Paragraph(f'<b>{category}</b>', styles['Heading2']))
         
         # Table data with formatted cells
-        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 20:00\n(Heures)', 'Après 20:00\n(Heures)', 'Avant 20:00\n(KM)', 'Après 20:00\n(KM)']]
+        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 18:30\n(Heures)', 'Après 18:30\n(Heures)', 'Avant 18:30\n(KM)', 'Après 18:30\n(KM)']]
         
         for record in categories_dict[category]:
             vehicle_obj = vehicles_dict.get(record.vehicle_code)
@@ -689,7 +689,7 @@ def generate_pdf_report_by_month(year, month, summary, vehicles_dict):
         story.append(Paragraph(f'<b>{category}</b>', styles['Heading2']))
         
         # Table data with formatted cells
-        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 20:00\n(Heures)', 'Après 20:00\n(Heures)', 'Avant 20:00\n(KM)', 'Après 20:00\n(KM)']]
+        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 18:30\n(Heures)', 'Après 18:30\n(Heures)', 'Avant 18:30\n(KM)', 'Après 18:30\n(KM)']]
         
         for vehicle_code in sorted(categories_dict[category].keys()):
             metrics = categories_dict[category][vehicle_code]
@@ -791,7 +791,7 @@ def generate_pdf_report_by_week(year, week, week_start, week_end, summary, vehic
         story.append(Paragraph(f'<b>{category}</b>', styles['Heading2']))
         
         # Table data with formatted cells
-        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 20:00\n(Heures)', 'Après 20:00\n(Heures)', 'Avant 20:00\n(KM)', 'Après 20:00\n(KM)']]
+        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 18:30\n(Heures)', 'Après 18:30\n(Heures)', 'Avant 18:30\n(KM)', 'Après 18:30\n(KM)']]
         
         for vehicle_code in sorted(categories_dict[category].keys()):
             metrics = categories_dict[category][vehicle_code]

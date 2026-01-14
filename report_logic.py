@@ -4,7 +4,8 @@ from pathlib import Path
 import math
 import re
 
-REF_HOUR = 20
+REF_HOUR = 18
+REF_MIN = 30
 
 
 def format_decimal_hours(decimal_hours):
@@ -97,8 +98,9 @@ def parse_km(x):
 
 
 def split_interval_at_20(start: datetime, end: datetime):
-    """Return (seconds_before20, seconds_after20) for interval [start, end).
+    """Return (seconds_before_ref, seconds_after_ref) for interval [start, end).
     Handles spans across multiple days by summing multiple splits.
+    Reference time: 18:30
     """
     if end <= start:
         return 0.0, 0.0
@@ -106,7 +108,7 @@ def split_interval_at_20(start: datetime, end: datetime):
     s_before = 0.0
     s_after = 0.0
     while cur < end:
-        ref_dt = datetime.combine(cur.date(), time(REF_HOUR,0,0))
+        ref_dt = datetime.combine(cur.date(), time(REF_HOUR, REF_MIN, 0))
         # Determine segment end: either end, or next ref boundary or midnight
         seg_end = min(end, ref_dt) if cur < ref_dt else min(end, ref_dt + timedelta(days=1))
         dur = (seg_end - cur).total_seconds()
@@ -130,7 +132,7 @@ def seconds_to_hhmm(seconds: float):
 
 
 def process_dataframe(df: pd.DataFrame, include_date=False):
-    """Process DataFrame and aggregate vehicle working time and KM split at 20:00."""
+    """Process DataFrame and aggregate vehicle working time and KM split at 18:30."""
     # Skip empty rows
     df = df.dropna(how='all').copy()
     
@@ -222,7 +224,7 @@ def process_dataframe(df: pd.DataFrame, include_date=False):
             
             km = row[kmcol]
             
-            # Split time and KM at 20:00
+            # Split time and KM at 18:30
             sec_before, sec_after = split_interval_at_20(start, stop)
             
             # Proportionally allocate KM
