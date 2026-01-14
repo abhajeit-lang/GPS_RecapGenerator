@@ -5,7 +5,7 @@ This script will show detailed breakdown of how times and KM are split at 20:00.
 """
 
 from datetime import datetime, timedelta
-from report_logic import split_interval_at_20, format_decimal_hours
+from report_logic import split_interval_at_ref, format_decimal_hours
 
 def verify_split(start_str, end_str, km=0):
     """Verify the split of an interval at 20:00."""
@@ -14,13 +14,13 @@ def verify_split(start_str, end_str, km=0):
     end = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S")
     
     print(f"\n{'='*70}")
-    print(f"Interval: {start} → {end}")
+    print(f"Interval: {start} -> {end}")
     print(f"Total Duration: {end - start}")
     print(f"Total KM: {km}")
     print(f"{'='*70}")
     
     # Get split
-    sec_before, sec_after = split_interval_at_20(start, end)
+    sec_before, sec_after = split_interval_at_ref(start, end, ref_hour=20, ref_min=0)
     total_sec = (end - start).total_seconds()
     
     # Convert to hours
@@ -34,19 +34,19 @@ def verify_split(start_str, end_str, km=0):
     else:
         km_before = km_after = 0
     
-    print(f"\n✓ BEFORE 20:00")
+    print(f"\n[OK] BEFORE 20:00")
     print(f"  Seconds: {sec_before:.0f}s")
     print(f"  Hours (decimal): {hours_before:.4f}h = {format_decimal_hours(hours_before)}")
     print(f"  Hours (2 decimal): {hours_before:.2f}h")
     print(f"  KM: {km_before:.2f} km")
     
-    print(f"\n✓ AFTER 20:00")
+    print(f"\n[OK] AFTER 20:00")
     print(f"  Seconds: {sec_after:.0f}s")
     print(f"  Hours (decimal): {hours_after:.4f}h = {format_decimal_hours(hours_after)}")
     print(f"  Hours (2 decimal): {hours_after:.2f}h")
     print(f"  KM: {km_after:.2f} km")
     
-    print(f"\n✓ TOTALS")
+    print(f"\n[OK] TOTALS")
     print(f"  Total Hours: {hours_before + hours_after:.2f}h")
     print(f"  Total KM: {km_before + km_after:.2f} km")
     print(f"  Verification: {total_sec:.0f}s = {total_sec/3600:.4f}h")

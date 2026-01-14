@@ -3,7 +3,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 from report_logic import load_file, process_dataframe, generate_reports, format_decimal_hours
-from models import db, VehicleActivity, Vehicle
+from models import db, VehicleActivity, Vehicle, Project, Atelier
 import tempfile
 from datetime import datetime
 import pandas as pd
@@ -14,6 +14,17 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 import io
+import json
+
+def load_settings():
+    try:
+        settings_path = Path(__file__).parent / 'settings.json'
+        if settings_path.exists():
+            with open(settings_path, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
@@ -63,9 +74,14 @@ def upload_file():
         filepath = Path(app.config['UPLOAD_FOLDER']) / filename
         file.save(str(filepath))
         
+        # Load settings
+        settings = load_settings()
+        ref_hour = settings.get('split_hour', 20)
+        ref_min = settings.get('split_min', 0)
+
         # Load and process the file
         df = load_file(filepath)
-        processed = process_dataframe(df, include_date=True)
+        processed = process_dataframe(df, include_date=True, ref_hour=ref_hour, ref_min=ref_min)
         
         # First, check for duplicate dates
         dates_to_add = set()
@@ -112,7 +128,11 @@ def upload_file():
                         hours_before_20h=metrics['before_sec'] / 3600,
                         hours_after_20h=metrics['after_sec'] / 3600,
                         km_before=metrics['km_before'],
-                        km_after=metrics['km_after']
+                        km_after=metrics['km_after'],
+                        trip_count=metrics.get('trip_count', 0),
+                        duration_course=metrics.get('dur_course', 0.0),
+                        duration_attente=metrics.get('dur_attente', 0.0),
+                        duration_arret=metrics.get('dur_arret', 0.0)
                     )
                     db.session.add(activity)
                     stored_count += 1
@@ -538,6 +558,135 @@ def get_categories():
             'categories': [c[0] for c in categories]
         })
     except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+# --- Hierarchy Management Routes ---
+
+@app.route('/hierarchy', methods=['GET'])
+def get_hierarchy():
+    """Get full hierarchy: Projects -> Ateliers -> Vehicles."""
+    try:
+        projects = Project.query.all()
+        # Get unassigned vehicles
+        unassigned = Vehicle.query.filter_by(atelier_id=None).all()
+        
+        return jsonify({
+            'projects': [p.to_dict() for p in projects],
+            'unassigned_vehicles': [v.to_dict() for v in unassigned]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/projects', methods=['POST'])
+def create_project():
+    try:
+        data = request.json
+        name = data.get('name')
+        description = data.get('description')
+        province = data.get('province')
+        
+        if not name:
+            return jsonify({'error': 'Project name required'}), 400
+        
+        project = Project(name=name, description=description, province=province)
+        db.session.add(project)
+        db.session.commit()
+        return jsonify(project.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/projects/<int:project_id>/ateliers', methods=['POST'])
+def create_atelier(project_id):
+    try:
+        data = request.json
+        name = data.get('name')
+        if not name:
+            return jsonify({'error': 'Atelier name required'}), 400
+            
+        atelier = Atelier(name=name, project_id=project_id)
+        db.session.add(atelier)
+        db.session.commit()
+        return jsonify(atelier.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/vehicles/<vehicle_id>/assign', methods=['POST'])
+def assign_vehicle(vehicle_id):
+    try:
+        data = request.json
+        atelier_id = data.get('atelier_id')
+        
+        vehicle = Vehicle.query.filter_by(id=vehicle_id).first()
+        if not vehicle:
+            return jsonify({'error': 'Vehicle not found'}), 404
+            
+        if atelier_id is None:
+            vehicle.atelier_id = None
+        else:
+            vehicle.atelier_id = atelier_id
+            
+        db.session.commit()
+        return jsonify(vehicle.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/projects/<int:project_id>', methods=['DELETE'])
+def delete_project(project_id):
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        # Check if project has ateliers
+        if len(project.ateliers) > 0:
+            return jsonify({
+                'error': 'Cannot delete project',
+                'message': f'Ce projet contient {len(project.ateliers)} atelier(s). Supprimez d\'abord les ateliers.'
+            }), 400
+        
+        db.session.delete(project)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Projet supprimé'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/ateliers/<int:atelier_id>', methods=['DELETE'])
+def delete_atelier(atelier_id):
+    try:
+        atelier = Atelier.query.get(atelier_id)
+        if not atelier:
+            return jsonify({'error': 'Atelier not found'}), 404
+        
+        # Check if atelier has assigned vehicles
+        if len(atelier.vehicles) > 0:
+            return jsonify({
+                'error': 'Cannot delete atelier',
+                'message': f'Cet atelier contient {len(atelier.vehicles)} engin(s). Désassignez d\'abord les engins.'
+            }), 400
+        
+        db.session.delete(atelier)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Atelier supprimé'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/vehicles/<vehicle_id>/unassign', methods=['POST'])
+def unassign_vehicle(vehicle_id):
+    try:
+        vehicle = Vehicle.query.filter_by(id=vehicle_id).first()
+        if not vehicle:
+            return jsonify({'error': 'Vehicle not found'}), 404
+            
+        vehicle.atelier_id = None
+        db.session.commit()
+        return jsonify(vehicle.to_dict())
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
 def generate_pdf_report_by_date(target_date, records, vehicles_dict):

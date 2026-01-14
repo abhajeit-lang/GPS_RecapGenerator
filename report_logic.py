@@ -4,8 +4,10 @@ from pathlib import Path
 import math
 import re
 
-REF_HOUR = 18
-REF_MIN = 30
+
+# Default reference time (fallback)
+DEFAULT_REF_HOUR = 20
+DEFAULT_REF_MIN = 0
 
 
 def format_decimal_hours(decimal_hours):
@@ -97,10 +99,10 @@ def parse_km(x):
         return 0.0
 
 
-def split_interval_at_20(start: datetime, end: datetime):
+def split_interval_at_ref(start: datetime, end: datetime, ref_hour=DEFAULT_REF_HOUR, ref_min=DEFAULT_REF_MIN):
     """Return (seconds_before_ref, seconds_after_ref) for interval [start, end).
     Handles spans across multiple days by summing multiple splits.
-    Reference time: 18:30
+    Reference time: ref_hour:ref_min (default 20:00)
     """
     if end <= start:
         return 0.0, 0.0
@@ -108,7 +110,7 @@ def split_interval_at_20(start: datetime, end: datetime):
     s_before = 0.0
     s_after = 0.0
     while cur < end:
-        ref_dt = datetime.combine(cur.date(), time(REF_HOUR, REF_MIN, 0))
+        ref_dt = datetime.combine(cur.date(), time(ref_hour, ref_min, 0))
         # Determine segment end: either end, or next ref boundary or midnight
         seg_end = min(end, ref_dt) if cur < ref_dt else min(end, ref_dt + timedelta(days=1))
         dur = (seg_end - cur).total_seconds()
@@ -131,8 +133,8 @@ def seconds_to_hhmm(seconds: float):
     return f"{h:02d}:{m:02d}"
 
 
-def process_dataframe(df: pd.DataFrame, include_date=False):
-    """Process DataFrame and aggregate vehicle working time and KM split at 18:30."""
+def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF_HOUR, ref_min=DEFAULT_REF_MIN):
+    """Process DataFrame and aggregate vehicle working time and KM split at reference time."""
     # Skip empty rows
     df = df.dropna(how='all').copy()
     
@@ -212,9 +214,20 @@ def process_dataframe(df: pd.DataFrame, include_date=False):
         km_before = 0.0
         km_after = 0.0
         
+        trip_count = 0
+        total_duration_course = 0.0
+        total_duration_attente = 0.0
+        total_duration_arret = 0.0
+
         for i, row in g.iterrows():
-            if str(row[caacol]).strip().lower() != 'course':
-                continue
+            caa_raw = str(row[caacol]).strip().lower()
+            activity_type = 'other'
+            if 'course' in caa_raw:
+                activity_type = 'course'
+            elif 'attente' in caa_raw:
+                activity_type = 'attente'
+            elif 'arrêt' in caa_raw or 'arret' in caa_raw:
+                activity_type = 'arret'
             
             start = row[start_col]
             stop = row[stop_col]
@@ -223,31 +236,61 @@ def process_dataframe(df: pd.DataFrame, include_date=False):
                 continue
             
             km = row[kmcol]
+            total_dur = (stop - start).total_seconds()
             
-            # Split time and KM at 18:30
-            sec_before, sec_after = split_interval_at_20(start, stop)
+            # Update metric totals
+            if activity_type == 'course':
+                trip_count += 1
+                total_duration_course += total_dur
+            elif activity_type == 'attente':
+                total_duration_attente += total_dur
+            elif activity_type == 'arret':
+                total_duration_arret += total_dur
+            
+            # Working time logic: Course + Attente = Working Time. Arrêt = Stop.
+            is_working = activity_type in ('course', 'attente')
+            
+            # Split time and KM at reference time
+            sec_before, sec_after = split_interval_at_ref(start, stop, ref_hour, ref_min)
             
             # Proportionally allocate KM
-            total_dur = (stop - start).total_seconds()
             if total_dur > 0:
                 km_b = km * (sec_before / total_dur)
                 km_a = km * (sec_after / total_dur)
             else:
                 km_b = km_a = 0.0
             
-            total_before_sec += sec_before
-            total_after_sec += sec_after
+            # Only add to "Working Hours" (before/after split) if it is working time
+            if is_working:
+                total_before_sec += sec_before
+                total_after_sec += sec_after
+            
             km_before += km_b
             km_after += km_a
             
             if include_date:
                 day_key = (start.year, start.month, start.day)
                 if day_key not in day_map:
-                    day_map[day_key] = {'before_sec': 0.0, 'after_sec': 0.0, 'km_before': 0.0, 'km_after': 0.0}
-                day_map[day_key]['before_sec'] += sec_before
-                day_map[day_key]['after_sec'] += sec_after
+                    day_map[day_key] = {
+                        'before_sec': 0.0, 'after_sec': 0.0, 
+                        'km_before': 0.0, 'km_after': 0.0,
+                        'trip_count': 0, 'dur_course': 0.0, 'dur_attente': 0.0, 'dur_arret': 0.0
+                    }
+                
+                if is_working:
+                    day_map[day_key]['before_sec'] += sec_before
+                    day_map[day_key]['after_sec'] += sec_after
+                
                 day_map[day_key]['km_before'] += km_b
                 day_map[day_key]['km_after'] += km_a
+                
+                if activity_type == 'course':
+                    day_map[day_key]['trip_count'] += 1
+                    day_map[day_key]['dur_course'] += total_dur
+                elif activity_type == 'attente':
+                    day_map[day_key]['dur_attente'] += total_dur
+                elif activity_type == 'arret':
+                    day_map[day_key]['dur_arret'] += total_dur
         
         results.append({
             'vehicle': vehicle,
@@ -257,7 +300,12 @@ def process_dataframe(df: pd.DataFrame, include_date=False):
             'time_after_seconds': int(round(total_after_sec)),
             'km_before': round(km_before, 3),
             'km_after': round(km_after, 3),
-            'day_map': day_map
+            'day_map': day_map,
+            # Aggregated totals for the whole file/vehicle
+            'trip_count': trip_count,
+            'total_duration_course': total_duration_course,
+            'total_duration_attente': total_duration_attente,
+            'total_duration_arret': total_duration_arret
         })
     
     return pd.DataFrame(results)
@@ -283,7 +331,14 @@ def generate_reports(infile: Path, outdir: Path, period='daily', out_format='csv
                         'time_before_hhmm': seconds_to_hhmm(metrics['before_sec']),
                         'time_after_hhmm': seconds_to_hhmm(metrics['after_sec']),
                         'km_before': round(metrics['km_before'], 3),
-                        'km_after': round(metrics['km_after'], 3)
+                        'time_before_hhmm': seconds_to_hhmm(metrics['before_sec']),
+                        'time_after_hhmm': seconds_to_hhmm(metrics['after_sec']),
+                        'km_before': round(metrics['km_before'], 3),
+                        'km_after': round(metrics['km_after'], 3),
+                        'trip_count': metrics.get('trip_count', 0),
+                        'duration_course_h': round(metrics.get('dur_course', 0.0) / 3600, 2),
+                        'duration_attente_h': round(metrics.get('dur_attente', 0.0) / 3600, 2),
+                        'duration_arret_h': round(metrics.get('dur_arret', 0.0) / 3600, 2)
                     })
         report_df = pd.DataFrame(all_daily)
         out = outdir / f"report_daily_{infile.stem}.{out_format}"
@@ -302,7 +357,17 @@ def generate_reports(infile: Path, outdir: Path, period='daily', out_format='csv
                     month_map[month_key]['before_sec'] += metrics['before_sec']
                     month_map[month_key]['after_sec'] += metrics['after_sec']
                     month_map[month_key]['km_before'] += metrics['km_before']
+                    month_map[month_key]['km_before'] += metrics['km_before']
                     month_map[month_key]['km_after'] += metrics['km_after']
+                    # Accumulate new metrics
+                    month_map[month_key].setdefault('trip_count', 0)
+                    month_map[month_key]['trip_count'] += metrics.get('trip_count', 0)
+                    month_map[month_key].setdefault('dur_course', 0.0)
+                    month_map[month_key]['dur_course'] += metrics.get('dur_course', 0.0)
+                    month_map[month_key].setdefault('dur_attente', 0.0)
+                    month_map[month_key]['dur_attente'] += metrics.get('dur_attente', 0.0)
+                    month_map[month_key].setdefault('dur_arret', 0.0)
+                    month_map[month_key]['dur_arret'] += metrics.get('dur_arret', 0.0)
             for (year, month), metrics in month_map.items():
                 all_monthly.append({
                     'year_month': f"{year:04d}-{month:02d}",
@@ -312,7 +377,14 @@ def generate_reports(infile: Path, outdir: Path, period='daily', out_format='csv
                     'time_before_hhmm': seconds_to_hhmm(metrics['before_sec']),
                     'time_after_hhmm': seconds_to_hhmm(metrics['after_sec']),
                     'km_before': round(metrics['km_before'], 3),
-                    'km_after': round(metrics['km_after'], 3)
+                    'time_before_hhmm': seconds_to_hhmm(metrics['before_sec']),
+                    'time_after_hhmm': seconds_to_hhmm(metrics['after_sec']),
+                    'km_before': round(metrics['km_before'], 3),
+                    'km_after': round(metrics['km_after'], 3),
+                    'trip_count': metrics.get('trip_count', 0),
+                    'duration_course_h': round(metrics.get('dur_course', 0.0) / 3600, 2),
+                    'duration_attente_h': round(metrics.get('dur_attente', 0.0) / 3600, 2),
+                    'duration_arret_h': round(metrics.get('dur_arret', 0.0) / 3600, 2)
                 })
         report_df = pd.DataFrame(all_monthly)
         out = outdir / f"report_monthly_{infile.stem}.{out_format}"

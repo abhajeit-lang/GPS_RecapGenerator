@@ -3,6 +3,39 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+class Project(db.Model):
+    __tablename__ = 'project'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.String(255), nullable=True)
+    province = db.Column(db.String(100), nullable=True)
+    ateliers = db.relationship('Atelier', backref='project', lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'province': self.province,
+            'ateliers': [a.to_dict() for a in self.ateliers]
+        }
+
+class Atelier(db.Model):
+    __tablename__ = 'atelier'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    vehicles = db.relationship('Vehicle', backref='atelier', lazy=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'project_id': self.project_id,
+            'vehicle_count': len(self.vehicles),
+            'vehicles': [{'id': v.id, 'name': v.name, 'matricule': v.matricule} for v in self.vehicles]
+        }
+
 class Vehicle(db.Model):
     __tablename__ = 'vehicle'
     
@@ -10,6 +43,7 @@ class Vehicle(db.Model):
     matricule = db.Column(db.String(100), nullable=False)  # Registration plate
     name = db.Column(db.String(255), nullable=False)
     category = db.Column(db.String(100), nullable=False)
+    atelier_id = db.Column(db.Integer, db.ForeignKey('atelier.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -20,7 +54,10 @@ class Vehicle(db.Model):
             'id': self.id,
             'matricule': self.matricule,
             'name': self.name,
-            'category': self.category
+            'category': self.category,
+            'atelier_id': self.atelier_id,
+            'atelier_name': self.atelier.name if self.atelier else None,
+            'project_name': self.atelier.project.name if self.atelier and self.atelier.project else None
         }
 
 class VehicleActivity(db.Model):
@@ -33,6 +70,12 @@ class VehicleActivity(db.Model):
     hours_after_20h = db.Column(db.Float, default=0.0)
     km_before = db.Column(db.Float, default=0.0)
     km_after = db.Column(db.Float, default=0.0)
+    
+    # New metrics
+    trip_count = db.Column(db.Integer, default=0)
+    duration_course = db.Column(db.Float, default=0.0)  # Seconds
+    duration_attente = db.Column(db.Float, default=0.0) # Seconds
+    duration_arret = db.Column(db.Float, default=0.0)   # Seconds
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

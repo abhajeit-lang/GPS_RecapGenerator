@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -19,6 +21,7 @@
             align-items: center;
             padding: 20px;
         }
+
         .container {
             background: white;
             border-radius: 10px;
@@ -27,23 +30,27 @@
             max-width: 700px;
             width: 100%;
         }
+
         h1 {
             color: #333;
             margin-bottom: 10px;
             text-align: center;
         }
+
         .subtitle {
             color: #666;
             text-align: center;
             margin-bottom: 30px;
             font-size: 14px;
         }
+
         .tabs {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
             border-bottom: 2px solid #eee;
         }
+
         .tab-btn {
             padding: 10px 20px;
             background: none;
@@ -54,25 +61,31 @@
             border-bottom: 3px solid transparent;
             transition: all 0.3s;
         }
+
         .tab-btn.active {
             color: #667eea;
             border-bottom-color: #667eea;
         }
+
         .tab-content {
             display: none;
         }
+
         .tab-content.active {
             display: block;
         }
+
         .form-group {
             margin-bottom: 20px;
         }
+
         label {
             display: block;
             margin-bottom: 8px;
             color: #333;
             font-weight: 500;
         }
+
         input[type="file"],
         input[type="date"],
         input[type="month"],
@@ -84,6 +97,7 @@
             font-size: 14px;
             transition: border-color 0.3s;
         }
+
         input[type="file"]:focus,
         input[type="date"]:focus,
         input[type="month"]:focus,
@@ -91,6 +105,7 @@
             outline: none;
             border-color: #667eea;
         }
+
         button {
             width: 100%;
             padding: 12px;
@@ -104,13 +119,16 @@
             transition: transform 0.2s, box-shadow 0.2s;
             margin-top: 10px;
         }
+
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
+
         button:active {
             transform: translateY(0);
         }
+
         .message {
             margin-top: 20px;
             padding: 15px;
@@ -118,18 +136,21 @@
             display: none;
             font-size: 14px;
         }
+
         .message.success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
             display: block;
         }
+
         .message.error {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
             display: block;
         }
+
         .message.warning {
             background: #fff3cd;
             color: #856404;
@@ -139,12 +160,14 @@
             font-family: monospace;
             font-size: 13px;
         }
+
         .loading {
             display: none;
             text-align: center;
             color: #667eea;
             font-weight: 500;
         }
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #667eea;
@@ -154,22 +177,32 @@
             animation: spin 1s linear infinite;
             margin: 10px auto;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
+
         .download-section {
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #ddd;
             display: none;
         }
+
         .download-btn {
             background: #28a745;
         }
+
         .download-btn:hover {
             box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4);
         }
+
         .file-info {
             background: #f8f9fa;
             padding: 15px;
@@ -178,6 +211,7 @@
             font-size: 14px;
             color: #666;
         }
+
         .dates-list {
             background: #f8f9fa;
             padding: 15px;
@@ -186,6 +220,7 @@
             max-height: 200px;
             overflow-y: auto;
         }
+
         .date-item {
             padding: 8px;
             cursor: pointer;
@@ -195,11 +230,13 @@
             border: 1px solid #ddd;
             transition: all 0.2s;
         }
+
         .date-item:hover {
             background: #667eea;
             color: white;
             border-color: #667eea;
         }
+
         .date-item.selected {
             background: #667eea;
             color: white;
@@ -207,17 +244,19 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>📊 Générateur de Rapports Véhicule</h1>
         <p class="subtitle">Téléchargez les données GPS et générez les rapports quotidiens ou mensuels</p>
-        
+
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('vehicles')">🚗 Gérer les Véhicules</button>
+            <button class="tab-btn" onclick="switchTab('hierarchy')">🏗️ Projets & Ateliers</button>
             <button class="tab-btn" onclick="switchTab('upload')">📤 Télécharger les Données</button>
             <button class="tab-btn" onclick="switchTab('query')">📊 Consulter les Rapports</button>
         </div>
-        
+
         <!-- Vehicle Management Tab -->
         <div id="vehicles" class="tab-content active">
             <h3 style="color:#333; margin-bottom:20px;">Télécharger la Liste des Véhicules</h3>
@@ -225,21 +264,21 @@
                 <label for="vehicleFile">Télécharger la Liste des Véhicules (Excel)</label>
                 <input type="file" id="vehicleFile" name="file" accept=".xlsx,.xls" required>
                 <small style="color:#666; margin-top:8px; display:block;">
-                    📥 <a href="/static/vehicle_template.xlsx" download style="color:#667eea;">Télécharger le Modèle</a> 
+                    📥 <a href="/static/vehicle_template.xlsx" download style="color:#667eea;">Télécharger le Modèle</a>
                     (Colonnes: ID, Matricule, Nom, Catégorie)
                 </small>
             </div>
             <button onclick="uploadVehicles()">📤 Télécharger les Véhicules</button>
-            
+
             <div class="loading" id="vehicleLoading">
                 <div class="spinner"></div>
                 <p>Traitement des véhicules...</p>
             </div>
-            
+
             <div class="message" id="vehicleMessage"></div>
-            
+
             <hr style="margin: 30px 0; border:none; border-top:1px solid #ddd;">
-            
+
             <h3 style="color:#333; margin-bottom:20px;">Ajouter un Véhicule Manuellement</h3>
             <div class="form-group">
                 <label for="newVehicleID">ID Véhicule</label>
@@ -258,20 +297,123 @@
                 <input type="text" id="newVehicleCategory" placeholder="ex: Livraison" required>
             </div>
             <button onclick="addVehicleManually()">➕ Ajouter un Véhicule</button>
-            
+
             <div class="message" id="manualVehicleMessage"></div>
-            
+
             <div style="margin-top: 30px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <label style="margin: 0;">Véhicules Enregistrés</label>
-                    <button onclick="downloadVehicleListPDF()" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">📄 Télécharger PDF</button>
+                    <button onclick="downloadVehicleListPDF()"
+                        style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">📄
+                        Télécharger PDF</button>
                 </div>
                 <div class="dates-list" id="vehiclesList">
                     <p style="color:#999;">Chargement des véhicules...</p>
                 </div>
             </div>
         </div>
-        
+
+        <!-- Hierarchy Management Tab -->
+        <div id="hierarchy" class="tab-content">
+            <h3 style="color:#333; margin-bottom:20px;">🏗️ Structure des Projets</h3>
+
+            <!-- Sub-Tabs for Hierarchy -->
+            <div
+                style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 1px;">
+                <button class="tab-btn active" style="font-size: 14px; padding: 8px 16px;"
+                    onclick="switchHierarchyTab('sub-projects')">📂 Projets</button>
+                <button class="tab-btn" style="font-size: 14px; padding: 8px 16px;"
+                    onclick="switchHierarchyTab('sub-ateliers')">🏭 Ateliers</button>
+                <button class="tab-btn" style="font-size: 14px; padding: 8px 16px;"
+                    onclick="switchHierarchyTab('sub-engins')">🚜 Engins</button>
+            </div>
+
+            <!-- 1. PROJECTS SUB-INTERFACE -->
+            <div id="sub-projects" class="hierarchy-content active" style="display: block;">
+                <div
+                    style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+                    <h4 style="margin-bottom: 10px;">Nouveau Projet</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" id="newProjectName" placeholder="Désignation (Nom)" required>
+                        <input type="text" id="newProjectProvince" placeholder="Province">
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="newProjectDesc" placeholder="Description" style="width: 100%;">
+                    </div>
+                    <button onclick="createProject()" style="width: auto; margin-top: 0; padding: 8px 16px;">Créer
+                        Projet</button>
+                </div>
+
+                <h4 style="margin-bottom: 10px;">Liste des Projets</h4>
+                <div id="projectsList" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- 2. ATELIERS SUB-INTERFACE -->
+            <div id="sub-ateliers" class="hierarchy-content" style="display: none;">
+                <div
+                    style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+                    <h4 style="margin-bottom: 10px;">Nouvel Atelier</h4>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <select id="projectSelectForAtelier" style="flex: 1;">
+                            <option value="">Sélectionner un Projet...</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="newAtelierName" placeholder="Nom de l'Atelier (ex: Terrassement)"
+                            style="flex: 1;">
+                        <button onclick="createAtelier()" style="width: auto; margin-top: 0; padding: 8px 16px;">Créer
+                            Atelier</button>
+                    </div>
+                </div>
+
+                <h4 style="margin-bottom: 10px;">Liste des Ateliers</h4>
+                <div id="ateliersList" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- 3. ENGINS SUB-INTERFACE -->
+            <div id="sub-engins" class="hierarchy-content" style="display: none;">
+                <div
+                    style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center; background: #e3e6fc; padding: 15px; border-radius: 5px;">
+                    <label style="font-weight: bold;">Sélectionner l'Atelier de destination:</label>
+                    <select id="atelierSelectForAssign" style="flex: 1;" onchange="loadEnginsForAtelier()">
+                        <option value="">-- Choisir un Atelier --</option>
+                    </select>
+                </div>
+
+                <div id="enginsInterface" style="display: none;">
+                    <div style="display: flex; gap: 20px;">
+                        <!-- Assigned Vehicles -->
+                        <div style="flex: 1;">
+                            <h4 style="margin-bottom: 10px; color: #28a745;">✅ Engins dans cet Atelier</h4>
+                            <div id="assignedEnginsList"
+                                style="height: 300px; overflow-y: auto; background: #f0fff4; border: 1px solid #c3e6cb; border-radius: 5px; padding: 5px;">
+                                <!-- List -->
+                            </div>
+                        </div>
+
+                        <!-- Unassigned Vehicles -->
+                        <div style="flex: 1;">
+                            <h4 style="margin-bottom: 10px; color: #666;">🚜 Engins Disponibles (Non Assignés)</h4>
+                            <div style="margin-bottom: 5px; display: flex; gap: 5px;">
+                                <input type="text" id="searchVehicle" placeholder="Rechercher..."
+                                    onkeyup="filterUnassigned()" style="padding: 5px; font-size: 12px;">
+                            </div>
+                            <div id="unassignedList"
+                                style="height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 5px;">
+                                <!-- List populated by JS -->
+                            </div>
+                            <button onclick="assignSelectedVehicles()" id="btnAssign" style="margin-top: 10px;">⬅️
+                                Ajouter à l'Atelier</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Upload Tab -->
         <div id="upload" class="tab-content">
             <form id="uploadForm">
@@ -281,15 +423,15 @@
                 </div>
                 <button type="submit">📤 Télécharger et Enregistrer en Base de Données</button>
             </form>
-            
+
             <div class="loading" id="uploadLoading">
                 <div class="spinner"></div>
                 <p>Traitement du fichier...</p>
             </div>
-            
+
             <div class="message" id="uploadMessage"></div>
         </div>
-        
+
         <!-- Query Tab -->
         <div id="query" class="tab-content">
             <div class="form-group">
@@ -300,16 +442,18 @@
                     <option value="month">Par Mois</option>
                 </select>
             </div>
-            
+
             <div class="form-group">
                 <label for="reportFormat">📥 Format d'Export</label>
                 <select id="reportFormat" style="background: #fff3cd; border: 2px solid #ffc107;">
                     <option value="csv">📊 CSV (Format Excel)</option>
                     <option value="pdf">📄 PDF (Rapport Professionnel - Recommandé)</option>
                 </select>
-                <small style="color: #666; display: block; margin-top: 8px;">💡 Conseil: Sélectionnez PDF pour télécharger un rapport formaté professionnellement avec noms de véhicules, matricules et données organisées.</small>
+                <small style="color: #666; display: block; margin-top: 8px;">💡 Conseil: Sélectionnez PDF pour
+                    télécharger un rapport formaté professionnellement avec noms de véhicules, matricules et données
+                    organisées.</small>
             </div>
-            
+
             <div id="dateQueryUI">
                 <div class="form-group">
                     <label>Dates Disponibles en Base de Données</label>
@@ -323,7 +467,7 @@
                 </div>
                 <button onclick="generateByDate()">📅 Générer le Rapport Quotidien</button>
             </div>
-            
+
             <div id="weekQueryUI" style="display:none;">
                 <div class="form-group">
                     <label for="weekInput">Sélectionner une Semaine</label>
@@ -331,7 +475,7 @@
                 </div>
                 <button onclick="generateByWeek()">📅 Générer le Rapport Hebdomadaire</button>
             </div>
-            
+
             <div id="monthQueryUI" style="display:none;">
                 <div class="form-group">
                     <label for="monthInput">Sélectionner un Mois</label>
@@ -339,14 +483,14 @@
                 </div>
                 <button onclick="generateByMonth()">📅 Générer le Rapport Mensuel</button>
             </div>
-            
+
             <div class="loading" id="queryLoading">
                 <div class="spinner"></div>
                 <p>Génération du rapport...</p>
             </div>
-            
+
             <div class="message" id="queryMessage"></div>
-            
+
             <div class="download-section" id="queryDownloadSection">
                 <div class="file-info" id="queryFileInfo"></div>
                 <button class="download-btn" id="queryDownloadBtn">⬇️ Télécharger le Rapport</button>
@@ -356,23 +500,381 @@
 
     <script>
         let currentFilename = '';
-        
+
         function switchTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
+
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
-            
+
             if (tabName === 'query') {
                 loadAvailableDates();
             } else if (tabName === 'vehicles') {
                 loadVehicles();
+            } else if (tabName === 'hierarchy') {
+                loadHierarchy();
             }
         }
-        
+
+        // --- Hierarchy Logic ---
+        let hierarchyData = null;
+        let selectedAtelierForAssign = null;
+
+        function switchHierarchyTab(subTabName) {
+            document.querySelectorAll('.hierarchy-content').forEach(el => el.style.display = 'none');
+            document.getElementById(subTabName).style.display = 'block';
+
+            // Update button styles (optional simple toggle)
+            // In a full implementation we would toggle .active class on buttons too
+        }
+
+        function loadHierarchy() {
+            fetch('/hierarchy')
+                .then(r => r.json())
+                .then(data => {
+                    hierarchyData = data;
+                    renderProjectsList();
+                    renderAteliersList();
+                    updateProjectSelect();
+                    updateAtelierSelectForAssign();
+                });
+        }
+
+        function createProject() {
+            const name = document.getElementById('newProjectName').value.trim();
+            const province = document.getElementById('newProjectProvince').value.trim();
+            const description = document.getElementById('newProjectDesc').value.trim();
+
+            if (!name) return alert('Désignation (Nom) requise');
+
+            fetch('/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    province: province,
+                    description: description
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.error) alert(data.error);
+                else {
+                    document.getElementById('newProjectName').value = '';
+                    document.getElementById('newProjectProvince').value = '';
+                    document.getElementById('newProjectDesc').value = '';
+                    loadHierarchy();
+                }
+            });
+        }
+
+        function createAtelier() {
+            const projectId = document.getElementById('projectSelectForAtelier').value;
+            const name = document.getElementById('newAtelierName').value.trim();
+            if (!projectId || !name) return alert('Projet et Nom requis');
+
+            fetch(`/projects/${projectId}/ateliers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            }).then(r => r.json()).then(data => {
+                if (data.error) alert(data.error);
+                else {
+                    document.getElementById('newAtelierName').value = '';
+                    loadHierarchy();
+                    // Switch to Ateliers view if desired, or stay
+                }
+            });
+        }
+
+        function renderProjectsList() {
+            const list = document.getElementById('projectsList');
+            if (!hierarchyData || !hierarchyData.projects.length) {
+                list.innerHTML = '<p class="text-muted">Aucun projet.</p>';
+                return;
+            }
+            let html = '';
+            hierarchyData.projects.forEach(p => {
+                html += `<div style="background: white; border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: bold; color: #333;">📁 ${p.name}</div>
+                        <div style="font-size: 0.9em; color: #666; margin-top: 4px;">
+                            Province: ${p.province || '-'} | ${p.description || ''}
+                        </div>
+                    </div>
+                    <button onclick="deleteProject(${p.id})" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;"
+                        onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
+                        Supprimer
+                    </button>
+                </div>`;
+            });
+            list.innerHTML = html;
+        }
+
+        function renderAteliersList() {
+            const list = document.getElementById('ateliersList');
+            if (!hierarchyData || !hierarchyData.projects.length) {
+                list.innerHTML = '<p class="text-muted">Aucun atelier.</p>';
+                return;
+            }
+            let html = '';
+            hierarchyData.projects.forEach(p => {
+                if (p.ateliers.length > 0) {
+                    html += `<div style="margin-bottom: 15px;">
+                        <h5 style="color: #667eea; border-bottom: 1px solid #eee; padding-bottom: 5px;">${p.name}</h5>`;
+                    p.ateliers.forEach(a => {
+                        html += `<div style="background: white; border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span>🏭 ${a.name}</span>
+                                <span style="margin-left: 10px; font-size: 0.8em; background: #e9ecef; padding: 2px 6px; border-radius: 10px;">${a.vehicle_count} Engins</span>
+                            </div>
+                            <button onclick="deleteAtelier(${a.id})" style="background: #dc3545; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;"
+                                onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
+                                Supprimer
+                            </button>
+                         </div>`;
+                    });
+                    html += `</div>`;
+                }
+            });
+            if (html === '') html = '<p class="text-muted">Aucun atelier créé.</p>';
+            list.innerHTML = html;
+        }
+
+        function updateProjectSelect() {
+            const select = document.getElementById('projectSelectForAtelier');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">Sélectionner un Projet...</option>';
+            hierarchyData.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
+            select.value = currentVal;
+        }
+
+        // --- Engin Assignment Logic ---
+
+        function updateAtelierSelectForAssign() {
+            const select = document.getElementById('atelierSelectForAssign');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">-- Choisir un Atelier --</option>';
+
+            hierarchyData.projects.forEach(p => {
+                if (p.ateliers.length > 0) {
+                    const group = document.createElement('optgroup');
+                    group.label = p.name;
+                    p.ateliers.forEach(a => {
+                        const opt = document.createElement('option');
+                        opt.value = a.id;
+                        opt.textContent = a.name;
+                        group.appendChild(opt);
+                    });
+                    select.appendChild(group);
+                }
+            });
+            select.value = currentVal;
+        }
+
+        function loadEnginsForAtelier() {
+            const atelierId = document.getElementById('atelierSelectForAssign').value;
+            const container = document.getElementById('enginsInterface');
+
+            if (!atelierId) {
+                container.style.display = 'none';
+                selectedAtelierForAssign = null;
+                return;
+            }
+
+            container.style.display = 'block';
+            selectedAtelierForAssign = parseInt(atelierId);
+
+            // Find atelier data to get currently assigned vehicles (if we had them in hierarchyData correctly nested)
+            // But currently hierarchyData includes vehicle *counts*, not full lists in the nested structures effectively for client side filtering maybe.
+            // Actually models.py `to_dict` for Atelier does NOT return the list of vehicles, only count.
+            // We need to fetch assigned vehicles or rely on `unassigned_vehicles`.
+            // For "Assigned Engins", we might need a new endpoint or update hierarchy endpoint.
+            // Let's assume for now we only show "Unassigned" to assign them. 
+            // To show "Assigned", we'd need to fetch them.
+            // Let's just list "Unassigned" for now as per request "affecte each engins to the atelier".
+
+            // Wait, user might want to see what is already there. 
+            // I'll update `renderUnassigned` to be the main focus.
+            renderUnassigned();
+        }
+
+        function renderUnassigned() {
+            const list = document.getElementById('unassignedList');
+            const assignedList = document.getElementById('assignedEnginsList');
+
+            // Populate Unassigned
+            if (!hierarchyData.unassigned_vehicles.length) {
+                list.innerHTML = '<p style="padding: 10px; color:#999;">Tous les véhicules sont assignés.</p>';
+            } else {
+                let html = '';
+                hierarchyData.unassigned_vehicles.forEach(v => {
+                    html += `<label style="display: block; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
+                        <input type="checkbox" class="unassigned-check" value="${v.id}">
+                        <strong>${v.id}</strong> <span style="color:#666; font-size: 0.9em;">(${v.name})</span>
+                    </label>`;
+                });
+                list.innerHTML = html;
+            }
+
+            // Populate Assigned - Find vehicles for selected atelier
+            if (!selectedAtelierForAssign) {
+                assignedList.innerHTML = '<p style="padding:10px; color:#999;">Sélectionnez un atelier pour voir les engins.</p>';
+                return;
+            }
+
+            // Find the atelier in hierarchy data
+            let assignedVehicles = [];
+            hierarchyData.projects.forEach(p => {
+                const atelier = p.ateliers.find(a => a.id === selectedAtelierForAssign);
+                if (atelier && atelier.vehicles) {
+                    assignedVehicles = atelier.vehicles;
+                }
+            });
+
+            if (assignedVehicles.length === 0) {
+                assignedList.innerHTML = '<p style="padding:10px; color:#999;">Aucun engin dans cet atelier.</p>';
+            } else {
+                let html = '';
+                assignedVehicles.forEach(v => {
+                    html += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #c3e6cb;">
+                        <div>
+                            <strong>${v.id}</strong><br>
+                            <small style="color:#666;">${v.name}</small>
+                        </div>
+                        <button onclick="unassignVehicle('${v.id}')" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;"
+                            onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
+                            Retirer
+                        </button>
+                    </div>`;
+                });
+                assignedList.innerHTML = html;
+            }
+        }
+
+        function unassignVehicle(vehicleId) {
+            if (!confirm(`Retirer ${vehicleId} de cet atelier?`)) return;
+
+            fetch(`/vehicles/${vehicleId}/assign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ atelier_id: null })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    alert('Véhicule retiré avec succès!');
+                    loadHierarchy();
+                    setTimeout(() => {
+                        const select = document.getElementById('atelierSelectForAssign');
+                        if (select.value) {
+                            loadEnginsForAtelier();
+                        }
+                    }, 500);
+                })
+                .catch(err => {
+                    console.error('Error unassigning vehicle:', err);
+                    alert('Erreur: ' + err.message);
+                });
+        }
+
+        function filterUnassigned() {
+            const term = document.getElementById('searchVehicle').value.toLowerCase();
+            const labels = document.querySelectorAll('#unassignedList label');
+            labels.forEach(lbl => {
+                const text = lbl.innerText.toLowerCase();
+                if (text.includes(term)) lbl.style.display = 'block';
+                else lbl.style.display = 'none';
+            });
+        }
+
+        function deleteProject(projectId) {
+            if (!confirm('Supprimer ce projet? Cette action est irréversible.')) return;
+
+            fetch(`/projects/${projectId}`, {
+                method: 'DELETE'
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error || !data.success) {
+                        alert(data.message || data.error || 'Erreur lors de la suppression');
+                    } else {
+                        alert(data.message);
+                        loadHierarchy();
+                    }
+                })
+                .catch(err => {
+                    alert('Erreur: ' + err.message);
+                });
+        }
+
+        function deleteAtelier(atelierId) {
+            if (!confirm('Supprimer cet atelier? Cette action est irréversible.')) return;
+
+            fetch(`/ateliers/${atelierId}`, {
+                method: 'DELETE'
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error || !data.success) {
+                        alert(data.message || data.error || 'Erreur lors de la suppression');
+                    } else {
+                        alert(data.message);
+                        loadHierarchy();
+                    }
+                })
+                .catch(err => {
+                    alert('Erreur: ' + err.message);
+                });
+        }
+
+        function assignSelectedVehicles() {
+            if (!selectedAtelierForAssign) {
+                alert('Veuillez sélectionner un atelier.');
+                return;
+            }
+
+            const checks = document.querySelectorAll('.unassigned-check:checked');
+            const ids = Array.from(checks).map(cb => cb.value);
+
+            if (ids.length === 0) {
+                alert('Sélectionnez au moins un véhicule.');
+                return;
+            }
+
+            // Show feedback
+            console.log('Assigning vehicles:', ids, 'to atelier:', selectedAtelierForAssign);
+
+            let promises = ids.map(vid =>
+                fetch(`/vehicles/${vid}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ atelier_id: selectedAtelierForAssign })
+                }).then(r => r.json())
+            );
+
+            Promise.all(promises).then((results) => {
+                console.log('Assignment results:', results);
+                alert(`${ids.length} véhicule(s) assigné(s) avec succès!`);
+                loadHierarchy(); // Reload hierarchy data
+                // Re-trigger loading for the current atelier
+                setTimeout(() => {
+                    const select = document.getElementById('atelierSelectForAssign');
+                    if (select.value) {
+                        loadEnginsForAtelier();
+                    }
+                }, 500);
+            }).catch(err => {
+                console.error('Error assigning vehicles:', err);
+                alert('Erreur lors de l\'assignation: ' + err.message);
+            });
+        }
+
         function updateQueryUI() {
             const reportType = document.getElementById('reportType').value;
             if (reportType === 'date') {
@@ -389,7 +891,7 @@
                 document.getElementById('monthQueryUI').style.display = 'block';
             }
         }
-        
+
         // Vehicle Management Functions
         function loadVehicles() {
             fetch('/vehicles')
@@ -397,7 +899,7 @@
                 .then(data => {
                     const list = document.getElementById('vehiclesList');
                     if (data.vehicles && data.vehicles.length > 0) {
-                        list.innerHTML = data.vehicles.map(v => 
+                        list.innerHTML = data.vehicles.map(v =>
                             `<div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
                                 <div class="date-item" style="flex: 1; padding: 12px; background: white; border: 1px solid #ddd; border-radius: 6px;">
                                     <strong>${v.id}</strong> - ${v.name}<br>
@@ -411,59 +913,59 @@
                     }
                 });
         }
-        
+
         function uploadVehicles() {
             const fileInput = document.getElementById('vehicleFile');
             const file = fileInput.files[0];
-            
+
             if (!file) {
                 showVehicleMessage('Please select a file', 'error');
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('file', file);
-            
+
             showVehicleLoading(true);
             hideVehicleMessage();
-            
+
             fetch('/vehicles/upload', {
                 method: 'POST',
                 body: formData
             })
-            .then(r => r.json())
-            .then(data => {
-                showVehicleLoading(false);
-                if (data.success !== false) {
-                    let msg = `✓ Added ${data.added} vehicles, Updated ${data.updated} vehicles`;
-                    if (data.errors && data.errors.length > 0) {
-                        msg += `\n⚠ ${data.errors.length} errors:\n` + data.errors.join('\n');
-                        showVehicleMessage(msg, 'error');
+                .then(r => r.json())
+                .then(data => {
+                    showVehicleLoading(false);
+                    if (data.success !== false) {
+                        let msg = `✓ Added ${data.added} vehicles, Updated ${data.updated} vehicles`;
+                        if (data.errors && data.errors.length > 0) {
+                            msg += `\n⚠ ${data.errors.length} errors:\n` + data.errors.join('\n');
+                            showVehicleMessage(msg, 'error');
+                        } else {
+                            showVehicleMessage(msg, 'success');
+                        }
+                        fileInput.value = '';
+                        loadVehicles();
                     } else {
-                        showVehicleMessage(msg, 'success');
+                        showVehicleMessage('Error: ' + data.error, 'error');
                     }
-                    fileInput.value = '';
-                    loadVehicles();
-                } else {
-                    showVehicleMessage('Error: ' + data.error, 'error');
-                }
-            });
+                });
         }
-        
+
         function addVehicleManually() {
             const vehicleID = document.getElementById('newVehicleID').value.trim();
             const matricule = document.getElementById('newVehicleMatricule').value.trim();
             const name = document.getElementById('newVehicleName').value.trim();
             const category = document.getElementById('newVehicleCategory').value.trim();
-            
+
             if (!vehicleID || !matricule || !name || !category) {
                 showManualVehicleMessage('Please fill in all fields', 'error');
                 return;
             }
-            
+
             fetch('/vehicles/add', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: vehicleID,
                     matricule: matricule,
@@ -471,74 +973,74 @@
                     category: category
                 })
             })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showManualVehicleMessage(`✓ ${data.message}`, 'success');
-                    document.getElementById('newVehicleID').value = '';
-                    document.getElementById('newVehicleMatricule').value = '';
-                    document.getElementById('newVehicleName').value = '';
-                    document.getElementById('newVehicleCategory').value = '';
-                    loadVehicles();
-                } else {
-                    showManualVehicleMessage('Error: ' + data.error, 'error');
-                }
-            });
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showManualVehicleMessage(`✓ ${data.message}`, 'success');
+                        document.getElementById('newVehicleID').value = '';
+                        document.getElementById('newVehicleMatricule').value = '';
+                        document.getElementById('newVehicleName').value = '';
+                        document.getElementById('newVehicleCategory').value = '';
+                        loadVehicles();
+                    } else {
+                        showManualVehicleMessage('Error: ' + data.error, 'error');
+                    }
+                });
         }
-        
+
         function showVehicleMessage(text, type) {
             const msg = document.getElementById('vehicleMessage');
             msg.textContent = text;
             msg.className = 'message ' + type;
         }
-        
+
         function hideVehicleMessage() {
             document.getElementById('vehicleMessage').className = 'message';
         }
-        
+
         function showVehicleLoading(show) {
             document.getElementById('vehicleLoading').style.display = show ? 'block' : 'none';
         }
-        
+
         function showManualVehicleMessage(text, type) {
             const msg = document.getElementById('manualVehicleMessage');
             msg.textContent = text;
             msg.className = 'message ' + type;
         }
-        
+
         function deleteVehicle(vehicleId) {
             if (!confirm(`Are you sure you want to delete vehicle ${vehicleId}? This cannot be undone.`)) {
                 return;
             }
-            
+
             fetch(`/vehicles/${vehicleId}`, {
                 method: 'DELETE'
             })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showVehicleMessage(`✓ ${data.message}`, 'success');
-                    loadVehicles();
-                } else {
-                    showVehicleMessage('Error: ' + data.error, 'error');
-                }
-            })
-            .catch(err => {
-                showVehicleMessage('Error: ' + err.message, 'error');
-            });
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showVehicleMessage(`✓ ${data.message}`, 'success');
+                        loadVehicles();
+                    } else {
+                        showVehicleMessage('Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(err => {
+                    showVehicleMessage('Error: ' + err.message, 'error');
+                });
         }
-        
+
         function downloadVehicleListPDF() {
             window.location.href = '/vehicles/download/pdf';
         }
-        
+
         function loadAvailableDates() {
             fetch('/dates')
                 .then(r => r.json())
                 .then(data => {
                     const list = document.getElementById('datesList');
                     if (data.dates && data.dates.length > 0) {
-                        list.innerHTML = data.dates.map(date => 
+                        list.innerHTML = data.dates.map(date =>
                             `<div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
                                 <div class="date-item" onclick="selectDate('${date}')" style="flex: 1; cursor: pointer; padding: 12px; background: white; border: 1px solid #ddd; border-radius: 6px;">${date}</div>
                                 <button onclick="deleteDate('${date}')" style="width: 36px; height: 36px; padding: 0; background: #dc3545; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">✕</button>
@@ -549,62 +1051,62 @@
                     }
                 });
         }
-        
+
         function selectDate(date) {
             document.getElementById('dateInput').value = date;
             document.querySelectorAll('.date-item').forEach(el => el.classList.remove('selected'));
             event.target.classList.add('selected');
         }
-        
+
         function deleteDate(date) {
             if (!confirm(`Are you sure you want to delete all records for ${date}? This cannot be undone.`)) {
                 return;
             }
-            
+
             fetch(`/report/delete/${date}`, {
                 method: 'DELETE'
             })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showQueryMessage(`✓ Deleted ${data.deleted} records for ${date}`, 'success');
-                    loadAvailableDates();
-                } else {
-                    showQueryMessage('Error: ' + data.error, 'error');
-                }
-            })
-            .catch(err => {
-                showQueryMessage('Error: ' + err.message, 'error');
-            });
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showQueryMessage(`✓ Deleted ${data.deleted} records for ${date}`, 'success');
+                        loadAvailableDates();
+                    } else {
+                        showQueryMessage('Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(err => {
+                    showQueryMessage('Error: ' + err.message, 'error');
+                });
         }
-        
+
         // Upload Handler
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const fileInput = document.getElementById('csvFile');
             const file = fileInput.files[0];
-            
+
             if (!file) {
                 showUploadMessage('Please select a file', 'error');
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('file', file);
-            
+
             showUploadLoading(true);
             hideUploadMessage();
-            
+
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const data = await response.json();
                 showUploadLoading(false);
-                
+
                 if (response.ok) {
                     showUploadMessage(data.message, 'success');
                     fileInput.value = '';
@@ -621,147 +1123,148 @@
                 showUploadMessage('Error: ' + error.message, 'error');
             }
         });
-        
+
         // Query Handlers
         function generateByDate() {
             const date = document.getElementById('dateInput').value;
             const format = document.getElementById('reportFormat').value;
-            
+
             if (!date) {
                 showQueryMessage('Please select a date', 'error');
                 return;
             }
-            
+
             showQueryLoading(true);
             hideQueryMessage();
             document.getElementById('queryDownloadSection').style.display = 'none';
-            
+
             fetch('/report/by-date', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({date: date, format: format})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: date, format: format })
             })
-            .then(r => r.json())
-            .then(data => {
-                showQueryLoading(false);
-                if (data.success) {
-                    currentFilename = data.filename;
-                    const formatLabel = format.toUpperCase();
-                    document.getElementById('queryFileInfo').innerHTML = 
-                        `<strong>✓ Report Generated (${formatLabel})!</strong><br>Date: ${date}<br>Records: ${data.rows}`;
-                    showQueryMessage(data.message, 'success');
-                    document.getElementById('queryDownloadSection').style.display = 'block';
-                } else {
-                    showQueryMessage('Error: ' + data.error, 'error');
-                }
-            });
+                .then(r => r.json())
+                .then(data => {
+                    showQueryLoading(false);
+                    if (data.success) {
+                        currentFilename = data.filename;
+                        const formatLabel = format.toUpperCase();
+                        document.getElementById('queryFileInfo').innerHTML =
+                            `<strong>✓ Report Generated (${formatLabel})!</strong><br>Date: ${date}<br>Records: ${data.rows}`;
+                        showQueryMessage(data.message, 'success');
+                        document.getElementById('queryDownloadSection').style.display = 'block';
+                    } else {
+                        showQueryMessage('Error: ' + data.error, 'error');
+                    }
+                });
         }
-        
+
         function generateByMonth() {
             const month = document.getElementById('monthInput').value;
             const format = document.getElementById('reportFormat').value;
-            
+
             if (!month) {
                 showQueryMessage('Please select a month', 'error');
                 return;
             }
-            
+
             const [year, monthNum] = month.split('-');
-            
+
             showQueryLoading(true);
             hideQueryMessage();
             document.getElementById('queryDownloadSection').style.display = 'none';
-            
+
             fetch('/report/by-month', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({year: parseInt(year), month: parseInt(monthNum), format: format})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year: parseInt(year), month: parseInt(monthNum), format: format })
             })
-            .then(r => r.json())
-            .then(data => {
-                showQueryLoading(false);
-                if (data.success) {
-                    currentFilename = data.filename;
-                    const formatLabel = format.toUpperCase();
-                    document.getElementById('queryFileInfo').innerHTML = 
-                        `<strong>✓ Report Generated (${formatLabel})!</strong><br>Month: ${year}-${monthNum}<br>Vehicles: ${data.rows}`;
-                    showQueryMessage(data.message, 'success');
-                    document.getElementById('queryDownloadSection').style.display = 'block';
-                } else {
-                    showQueryMessage('Error: ' + data.error, 'error');
-                }
-            });
+                .then(r => r.json())
+                .then(data => {
+                    showQueryLoading(false);
+                    if (data.success) {
+                        currentFilename = data.filename;
+                        const formatLabel = format.toUpperCase();
+                        document.getElementById('queryFileInfo').innerHTML =
+                            `<strong>✓ Report Generated (${formatLabel})!</strong><br>Month: ${year}-${monthNum}<br>Vehicles: ${data.rows}`;
+                        showQueryMessage(data.message, 'success');
+                        document.getElementById('queryDownloadSection').style.display = 'block';
+                    } else {
+                        showQueryMessage('Error: ' + data.error, 'error');
+                    }
+                });
         }
-        
+
         function generateByWeek() {
             const week = document.getElementById('weekInput').value;
             const format = document.getElementById('reportFormat').value;
-            
+
             if (!week) {
                 showQueryMessage('Veuillez sélectionner une semaine', 'error');
                 return;
             }
-            
+
             const [year, weekNum] = week.split('-W');
-            
+
             showQueryLoading(true);
             hideQueryMessage();
             document.getElementById('queryDownloadSection').style.display = 'none';
-            
+
             fetch('/report/by-week', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({year: parseInt(year), week: parseInt(weekNum), format: format})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year: parseInt(year), week: parseInt(weekNum), format: format })
             })
-            .then(r => r.json())
-            .then(data => {
-                showQueryLoading(false);
-                if (data.success) {
-                    currentFilename = data.filename;
-                    const formatLabel = format.toUpperCase();
-                    document.getElementById('queryFileInfo').innerHTML = 
-                        `<strong>✓ Report Generated (${formatLabel})!</strong><br>Week: ${year}-W${weekNum.toString().padStart(2, '0')}<br>Records: ${data.rows}`;
-                    showQueryMessage(data.message, 'success');
-                    document.getElementById('queryDownloadSection').style.display = 'block';
-                } else {
-                    showQueryMessage('Error: ' + data.error, 'error');
-                }
-            });
+                .then(r => r.json())
+                .then(data => {
+                    showQueryLoading(false);
+                    if (data.success) {
+                        currentFilename = data.filename;
+                        const formatLabel = format.toUpperCase();
+                        document.getElementById('queryFileInfo').innerHTML =
+                            `<strong>✓ Report Generated (${formatLabel})!</strong><br>Week: ${year}-W${weekNum.toString().padStart(2, '0')}<br>Records: ${data.rows}`;
+                        showQueryMessage(data.message, 'success');
+                        document.getElementById('queryDownloadSection').style.display = 'block';
+                    } else {
+                        showQueryMessage('Error: ' + data.error, 'error');
+                    }
+                });
         }
-        
+
         document.getElementById('queryDownloadBtn').addEventListener('click', () => {
             if (currentFilename) {
                 window.location.href = `/download/${encodeURIComponent(currentFilename)}`;
             }
         });
-        
+
         function showUploadMessage(text, type) {
             const msg = document.getElementById('uploadMessage');
             msg.textContent = text;
             msg.className = 'message ' + type;
         }
-        
+
         function hideUploadMessage() {
             document.getElementById('uploadMessage').className = 'message';
         }
-        
+
         function showUploadLoading(show) {
             document.getElementById('uploadLoading').style.display = show ? 'block' : 'none';
         }
-        
+
         function showQueryMessage(text, type) {
             const msg = document.getElementById('queryMessage');
             msg.textContent = text;
             msg.className = 'message ' + type;
         }
-        
+
         function hideQueryMessage() {
             document.getElementById('queryMessage').className = 'message';
         }
-        
+
         function showQueryLoading(show) {
             document.getElementById('queryLoading').style.display = show ? 'block' : 'none';
         }
     </script>
 </body>
+
 </html>
