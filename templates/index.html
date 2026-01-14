@@ -597,15 +597,15 @@
             let html = '';
             hierarchyData.projects.forEach(p => {
                 html += `<div style="background: white; border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
+                    <div style="flex: 1;">
                         <div style="font-weight: bold; color: #333;">📁 ${p.name}</div>
                         <div style="font-size: 0.9em; color: #666; margin-top: 4px;">
                             Province: ${p.province || '-'} | ${p.description || ''}
                         </div>
                     </div>
-                    <button onclick="deleteProject(${p.id})" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px;"
-                        onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
-                        Supprimer
+                    <button onclick="deleteProject(${p.id})" title="Supprimer ce projet" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 14px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                        onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
+                        🗑️
                     </button>
                 </div>`;
             });
@@ -625,13 +625,13 @@
                         <h5 style="color: #667eea; border-bottom: 1px solid #eee; padding-bottom: 5px;">${p.name}</h5>`;
                     p.ateliers.forEach(a => {
                         html += `<div style="background: white; border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
+                            <div style="flex: 1;">
                                 <span>🏭 ${a.name}</span>
                                 <span style="margin-left: 10px; font-size: 0.8em; background: #e9ecef; padding: 2px 6px; border-radius: 10px;">${a.vehicle_count} Engins</span>
                             </div>
-                            <button onclick="deleteAtelier(${a.id})" style="background: #dc3545; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px;"
-                                onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
-                                Supprimer
+                            <button onclick="deleteAtelier(${a.id})" title="Supprimer cet atelier" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 13px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                                onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
+                                🗑️
                             </button>
                          </div>`;
                     });
@@ -744,13 +744,13 @@
                 let html = '';
                 assignedVehicles.forEach(v => {
                     html += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #c3e6cb;">
-                        <div>
+                        <div style="flex: 1;">
                             <strong>${v.id}</strong><br>
                             <small style="color:#666;">${v.name}</small>
                         </div>
-                        <button onclick="unassignVehicle('${v.id}')" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;"
-                            onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
-                            Retirer
+                        <button onclick="unassignVehicle('${v.id}')" title="Retirer de l'atelier" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 13px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                            onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
+                            ✕
                         </button>
                     </div>`;
                 });
