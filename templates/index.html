@@ -297,7 +297,22 @@
                 <label for="newVehicleCategory">Catégorie</label>
                 <input type="text" id="newVehicleCategory" placeholder="ex: Livraison" required>
             </div>
-            <button onclick="addVehicleManually()">➕ Ajouter un Véhicule</button>
+            <div class="form-group">
+                <label for="newVehicleMovement">Type de Mouvement</label>
+                <select id="newVehicleMovement"
+                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <option value="Move">Move (Calcule les trajets)</option>
+                    <option value="Sur place">Sur place (Ne calcule pas les trajets)</option>
+                </select>
+                <small style="color: #666; margin-top: 5px; display: block;">"Sur place" ignore le nombre de trajets
+                    même si le véhicule bouge.</small>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="btnSaveVehicle" onclick="addVehicleManually()" style="flex: 1;">➕ Ajouter un
+                    Véhicule</button>
+                <button id="btnCancelVehicle" onclick="cancelVehicleEdit()"
+                    style="flex: 1; background: #6c757d; display: none;">Annuler</button>
+            </div>
 
             <div class="message" id="manualVehicleMessage"></div>
 
@@ -361,11 +376,19 @@
                             <option value="">Sélectionner un Projet...</option>
                         </select>
                     </div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="number" id="newAtelierMinKm" placeholder="Min KM (ex: 0.5)" step="0.1" value="0.5"
+                            style="flex: 1;">
+                        <input type="number" id="newAtelierMaxKm" placeholder="Max KM (ex: 15.0)" step="0.1"
+                            value="15.0" style="flex: 1;">
+                    </div>
                     <div style="display: flex; gap: 10px;">
                         <input type="text" id="newAtelierName" placeholder="Nom de l'Atelier (ex: Terrassement)"
                             style="flex: 1;">
-                        <button onclick="createAtelier()" style="width: auto; margin-top: 0; padding: 8px 16px;">Créer
-                            Atelier</button>
+                        <button id="btnSaveAtelier" onclick="saveAtelier()"
+                            style="width: auto; margin-top: 0; padding: 8px 16px;">Créer Atelier</button>
+                        <button id="btnCancelAtelier" onclick="cancelAtelierEdit()"
+                            style="width: auto; margin-top: 0; padding: 8px 16px; background: #6c757d; display: none;">Annuler</button>
                     </div>
                 </div>
 
@@ -487,10 +510,38 @@
             </div>
 
             <!-- 2. ATELIER PERFORMANCE (Placeholder) -->
+            <!-- 2. ATELIER PERFORMANCE -->
             <div id="report-atelier-perf" class="report-content" style="display: none;">
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center;">
-                    <p style="font-size: 18px; color: #667eea;">🚧 Rapport Performance d'Atelier - En Développement</p>
-                    <p style="color: #666;">Sélectionnez un atelier pour voir ses performances détaillées</p>
+                <div
+                    style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+                    <h4 style="margin-bottom: 15px;">Rapport de Performance Atelier (PDF)</h4>
+
+                    <!-- Date Range -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Date Début:</label>
+                            <input type="date" id="perf_start_date" style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Date Fin:</label>
+                            <input type="date" id="perf_end_date" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <!-- Atelier Selection -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Sélectionner
+                            l'Atelier:</label>
+                        <select id="perf_atelier_select"
+                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">-- Choisir un atelier --</option>
+                        </select>
+                    </div>
+
+                    <button onclick="generateAtelierPerformancePDF()"
+                        style="background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
+                        📄 Télécharger le Rapport PDF
+                    </button>
                 </div>
             </div>
 
@@ -647,23 +698,63 @@
             });
         }
 
-        function createAtelier() {
+        let editingAtelierId = null;
+
+        function saveAtelier() {
             const projectId = document.getElementById('projectSelectForAtelier').value;
             const name = document.getElementById('newAtelierName').value.trim();
-            if (!projectId || !name) return alert('Projet et Nom requis');
+            const minKm = document.getElementById('newAtelierMinKm').value;
+            const maxKm = document.getElementById('newAtelierMaxKm').value;
 
-            fetch(`/projects/${projectId}/ateliers`, {
-                method: 'POST',
+            if (!name) return alert('Nom requis');
+            if (!editingAtelierId && !projectId) return alert('Projet requis');
+
+            const url = editingAtelierId ? `/ateliers/${editingAtelierId}` : `/projects/${projectId}/ateliers`;
+            const method = editingAtelierId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name })
+                body: JSON.stringify({
+                    name: name,
+                    min_trip_km: minKm,
+                    max_trip_km: maxKm
+                })
             }).then(r => r.json()).then(data => {
                 if (data.error) alert(data.error);
                 else {
-                    document.getElementById('newAtelierName').value = '';
+                    cancelAtelierEdit();
                     loadHierarchy();
-                    // Switch to Ateliers view if desired, or stay
                 }
             });
+        }
+
+        function editAtelier(id, name, min, max) {
+            editingAtelierId = id;
+            document.getElementById('newAtelierName').value = name;
+            document.getElementById('newAtelierMinKm').value = min;
+            document.getElementById('newAtelierMaxKm').value = max;
+
+            document.getElementById('btnSaveAtelier').textContent = 'Modifier Atelier';
+            document.getElementById('btnSaveAtelier').style.background = '#ffc107';
+            document.getElementById('btnSaveAtelier').style.color = '#000';
+            document.getElementById('btnCancelAtelier').style.display = 'block';
+
+            // Disable project select as we don't move ateliers for now
+            document.getElementById('projectSelectForAtelier').disabled = true;
+        }
+
+        function cancelAtelierEdit() {
+            editingAtelierId = null;
+            document.getElementById('newAtelierName').value = '';
+            document.getElementById('newAtelierMinKm').value = '0.5';
+            document.getElementById('newAtelierMaxKm').value = '15.0';
+
+            document.getElementById('btnSaveAtelier').textContent = 'Créer Atelier';
+            document.getElementById('btnSaveAtelier').style.background = '#667eea'; // Reset color
+            document.getElementById('btnSaveAtelier').style.color = 'white';
+            document.getElementById('btnCancelAtelier').style.display = 'none';
+            document.getElementById('projectSelectForAtelier').disabled = false;
         }
 
         function renderProjectsList() {
@@ -706,7 +797,13 @@
                             <div style="flex: 1;">
                                 <span>🏭 ${a.name}</span>
                                 <span style="margin-left: 10px; font-size: 0.8em; background: #e9ecef; padding: 2px 6px; border-radius: 10px;">${a.vehicle_count} Engins</span>
+                                <div style="font-size: 0.85em; color: #888; margin-top: 2px;">
+                                    📏 Trajet Valide: ${a.min_trip_km || 0.5}km - ${a.max_trip_km || 15}km
+                                </div>
                             </div>
+                            <button onclick="editAtelier(${a.id}, '${a.name}', ${a.min_trip_km || 0.5}, ${a.max_trip_km || 15})" title="Modifier" style="background: #ffc107; color: black; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 13px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-right: 5px; transition: all 0.2s;">
+                                ✏️
+                            </button>
                             <button onclick="deleteAtelier(${a.id})" title="Supprimer cet atelier" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 13px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
                                 onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
                                 🗑️
@@ -981,8 +1078,10 @@
                             `<div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center;">
                                 <div class="date-item" style="flex: 1; padding: 12px; background: white; border: 1px solid #ddd; border-radius: 6px;">
                                     <strong>${v.id}</strong> - ${v.name}<br>
-                                    <small style="color:#999;">Matricule: ${v.matricule} | Category: ${v.category}</small>
+                                    <strong>${v.id}</strong> - ${v.name}<br>
+                                    <small style="color:#999;">Matricule: ${v.matricule} | Cat: ${v.category} | Type: <span style="color: ${v.movement_type === 'Sur place' ? '#dc3545' : '#28a745'}; font-weight: bold;">${v.movement_type || 'Move'}</span></small>
                                 </div>
+                                <button onclick="editVehicle('${v.id}', '${v.matricule}', '${v.name}', '${v.category}', '${v.movement_type || 'Move'}')" title="Modifier" style="width: 36px; height: 36px; padding: 0; background: #ffc107; color: black; border: none; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-right: 5px;">✏️</button>
                                 <button onclick="deleteVehicle('${v.id}')" style="width: 36px; height: 36px; padding: 0; background: #dc3545; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s; hover: background #c82333;" onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">✕</button>
                             </div>`
                         ).join('');
@@ -1030,40 +1129,78 @@
                 });
         }
 
+        let editingVehicleId = null;
+
         function addVehicleManually() {
             const vehicleID = document.getElementById('newVehicleID').value.trim();
             const matricule = document.getElementById('newVehicleMatricule').value.trim();
             const name = document.getElementById('newVehicleName').value.trim();
             const category = document.getElementById('newVehicleCategory').value.trim();
+            const movementType = document.getElementById('newVehicleMovement').value;
 
             if (!vehicleID || !matricule || !name || !category) {
                 showManualVehicleMessage('Please fill in all fields', 'error');
                 return;
             }
 
-            fetch('/vehicles/add', {
-                method: 'POST',
+            const url = editingVehicleId ? `/vehicles/${vehicleID}` : '/vehicles/add';
+            const method = editingVehicleId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: vehicleID,
                     matricule: matricule,
                     name: name,
-                    category: category
+                    category: category,
+                    movement_type: movementType
                 })
             })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.success) {
-                        showManualVehicleMessage(`✓ ${data.message}`, 'success');
-                        document.getElementById('newVehicleID').value = '';
-                        document.getElementById('newVehicleMatricule').value = '';
-                        document.getElementById('newVehicleName').value = '';
-                        document.getElementById('newVehicleCategory').value = '';
+                    if (data.success || data.id) { // PUT returns vehicle object (with id), POST returns success msg
+                        const successMsg = data.message || `Vehicle ${data.id} updated successfully`;
+                        showManualVehicleMessage(`✓ ${successMsg}`, 'success');
+                        cancelVehicleEdit();
                         loadVehicles();
                     } else {
                         showManualVehicleMessage('Error: ' + data.error, 'error');
                     }
                 });
+        }
+
+        function editVehicle(id, matricule, name, category, movement) {
+            editingVehicleId = id;
+            document.getElementById('newVehicleID').value = id;
+            document.getElementById('newVehicleID').readOnly = true; // ID cannot be changed
+            document.getElementById('newVehicleMatricule').value = matricule;
+            document.getElementById('newVehicleName').value = name;
+            document.getElementById('newVehicleCategory').value = category;
+            document.getElementById('newVehicleMovement').value = movement;
+
+            document.getElementById('btnSaveVehicle').textContent = '💾 Mettre à jour';
+            document.getElementById('btnSaveVehicle').style.background = '#ffc107';
+            document.getElementById('btnSaveVehicle').style.color = '#000';
+            document.getElementById('btnCancelVehicle').style.display = 'block';
+
+            // Scroll to form
+            document.getElementById('newVehicleID').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelVehicleEdit() {
+            editingVehicleId = null;
+            document.getElementById('newVehicleID').value = '';
+            document.getElementById('newVehicleID').readOnly = false;
+            document.getElementById('newVehicleMatricule').value = '';
+            document.getElementById('newVehicleName').value = '';
+            document.getElementById('newVehicleCategory').value = '';
+            document.getElementById('newVehicleMovement').value = 'Move';
+
+            document.getElementById('btnSaveVehicle').textContent = '➕ Ajouter un Véhicule';
+            document.getElementById('btnSaveVehicle').style.background = ''; // reset 
+            document.getElementById('btnSaveVehicle').style.color = '';
+            document.getElementById('btnCancelVehicle').style.display = 'none';
         }
 
         function showVehicleMessage(text, type) {
@@ -1431,6 +1568,82 @@
                 });
         }
 
+        function loadAteliersForPerformance() {
+            if (!hierarchyData || !hierarchyData.projects) return;
+
+            const select = document.getElementById('perf_atelier_select');
+            select.innerHTML = '<option value="">-- Choisir un atelier --</option>';
+
+            hierarchyData.projects.forEach(p => {
+                if (p.ateliers.length > 0) {
+                    const group = document.createElement('optgroup');
+                    group.label = p.name;
+
+                    p.ateliers.forEach(a => {
+                        const option = document.createElement('option');
+                        option.value = a.id;
+                        option.textContent = `${a.name} (${a.vehicle_count} engins)`;
+                        group.appendChild(option);
+                    });
+
+                    select.appendChild(group);
+                }
+            });
+        }
+
+        function generateAtelierPerformancePDF() {
+            const startDate = document.getElementById('perf_start_date').value;
+            const endDate = document.getElementById('perf_end_date').value;
+            const atelierId = document.getElementById('perf_atelier_select').value;
+
+            if (!startDate || !endDate) {
+                alert('Veuillez sélectionner les dates de début et fin.');
+                return;
+            }
+
+            if (!atelierId) {
+                alert('Veuillez sélectionner un atelier.');
+                return;
+            }
+
+            document.getElementById('advReportLoading').style.display = 'block';
+            document.getElementById('advReportMessage').innerHTML = '';
+
+            fetch(`/reports/atelier/${atelierId}/pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    return response.json().then(err => { throw new Error(err.error || 'Erreur inconnue') });
+                })
+                .then(blob => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+
+                    // Create download link
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Rapport_Atelier_${startDate}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    document.getElementById('advReportMessage').innerHTML = '<p style="color:#28a745;">✓ Rapport téléchargé avec succès!</p>';
+                })
+                .catch(err => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+                    document.getElementById('advReportMessage').innerHTML = `<p style="color:#dc3545;">Erreur: ${err.message}</p>`;
+                });
+        }
+
         function displayComparativeResults(results, dateRange) {
             const container = document.getElementById('comparativeTable');
             const resultsDiv = document.getElementById('comparativeResults');
@@ -1486,6 +1699,7 @@
             originalSwitchTabAdv(tabName);
             if (tabName === 'advanced-reports') {
                 loadAteliersForComparative();
+                loadAteliersForPerformance();
             }
         };
     </script>

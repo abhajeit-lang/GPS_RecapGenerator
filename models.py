@@ -25,6 +25,8 @@ class Atelier(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    min_trip_km = db.Column(db.Float, default=0.5)
+    max_trip_km = db.Column(db.Float, default=15.0)
     vehicles = db.relationship('Vehicle', backref='atelier', lazy=True)
 
     def to_dict(self):
@@ -32,6 +34,8 @@ class Atelier(db.Model):
             'id': self.id,
             'name': self.name,
             'project_id': self.project_id,
+            'min_trip_km': self.min_trip_km,
+            'max_trip_km': self.max_trip_km,
             'vehicle_count': len(self.vehicles),
             'vehicles': [{'id': v.id, 'name': v.name, 'matricule': v.matricule} for v in self.vehicles]
         }
@@ -44,6 +48,7 @@ class Vehicle(db.Model):
     name = db.Column(db.String(255), nullable=False)
     category = db.Column(db.String(100), nullable=False)
     atelier_id = db.Column(db.Integer, db.ForeignKey('atelier.id'), nullable=True)
+    movement_type = db.Column(db.String(20), default='Move')  # 'Move' or 'Sur place'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):
@@ -55,6 +60,7 @@ class Vehicle(db.Model):
             'matricule': self.matricule,
             'name': self.name,
             'category': self.category,
+            'movement_type': self.movement_type or 'Move',
             'atelier_id': self.atelier_id,
             'atelier_name': self.atelier.name if self.atelier else None,
             'project_name': self.atelier.project.name if self.atelier and self.atelier.project else None

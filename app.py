@@ -80,9 +80,20 @@ def upload_file():
         ref_hour = settings.get('split_hour', 20)
         ref_min = settings.get('split_min', 0)
 
+        # Build vehicle configurations map
+        vehicle_configs = {}
+        all_vehicles = Vehicle.query.all()
+        for v in all_vehicles:
+            if v.atelier:
+                vehicle_configs[v.id] = {
+                    'min_trip_km': v.atelier.min_trip_km,
+                    'max_trip_km': v.atelier.max_trip_km,
+                    'movement_type': v.movement_type
+                }
+
         # Load and process the file
         df = load_file(filepath)
-        processed = process_dataframe(df, include_date=True, ref_hour=ref_hour, ref_min=ref_min)
+        processed = process_dataframe(df, include_date=True, ref_hour=ref_hour, ref_min=ref_min, vehicle_configs=vehicle_configs)
         
         # First, check for duplicate dates
         dates_to_add = set()
@@ -484,18 +495,24 @@ def add_vehicle():
         data = request.json
         vehicle_id = data.get('id', '').strip()
         matricule = data.get('matricule', '').strip()
-        name = data.get('name', '').strip()
-        category = data.get('category', '').strip()
+        name = data.get('name')
+        category = data.get('category')
+        movement_type = data.get('movement_type', 'Move')
         
-        if not all([vehicle_id, matricule, name, category]):
-            return jsonify({'error': 'All fields (ID, Matricule, Name, Category) are required'}), 400
-        
-        # Check if vehicle already exists
+        if not vehicle_id or not matricule or not name or not category:
+            return jsonify({'error': 'All fields required'}), 400
+            
         existing = Vehicle.query.filter_by(id=vehicle_id).first()
         if existing:
-            return jsonify({'error': f'Vehicle with ID {vehicle_id} already exists'}), 400
-        
-        vehicle = Vehicle(id=vehicle_id, matricule=matricule, name=name, category=category)
+            return jsonify({'error': 'Vehicle ID already exists'}), 400
+            
+        vehicle = Vehicle(
+            id=vehicle_id, 
+            matricule=matricule, 
+            name=name, 
+            category=category,
+            movement_type=movement_type
+        )
         db.session.add(vehicle)
         db.session.commit()
         
@@ -550,6 +567,35 @@ def delete_vehicle(vehicle_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
+@app.route('/vehicles/<vehicle_id>', methods=['PUT'])
+def update_vehicle(vehicle_id):
+    """Update vehicle details."""
+    try:
+        vehicle = Vehicle.query.filter_by(id=vehicle_id).first()
+        if not vehicle:
+            return jsonify({'error': 'Vehicle not found'}), 404
+            
+        data = request.json
+        matricule = data.get('matricule')
+        name = data.get('name')
+        category = data.get('category')
+        movement_type = data.get('movement_type')
+        
+        if matricule:
+            vehicle.matricule = matricule.strip()
+        if name:
+            vehicle.name = name.strip()
+        if category:
+            vehicle.category = category.strip()
+        if movement_type:
+            vehicle.movement_type = movement_type
+            
+        db.session.commit()
+        return jsonify(vehicle.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/categories', methods=['GET'])
 def get_categories():
     """Get list of all categories."""
@@ -595,6 +641,8 @@ def create_project():
         return jsonify(project.to_dict())
     except Exception as e:
         db.session.rollback()
+        if 'UNIQUE constraint failed' in str(e):
+             return jsonify({'error': f'Un projet nommé "{name}" existe déjà.'}), 400
         return jsonify({'error': str(e)}), 400
 
 @app.route('/projects/<int:project_id>/ateliers', methods=['POST'])
@@ -602,10 +650,18 @@ def create_atelier(project_id):
     try:
         data = request.json
         name = data.get('name')
+        min_trip_km = data.get('min_trip_km', 0.5)
+        max_trip_km = data.get('max_trip_km', 15.0)
+        
         if not name:
             return jsonify({'error': 'Atelier name required'}), 400
             
-        atelier = Atelier(name=name, project_id=project_id)
+        atelier = Atelier(
+            name=name, 
+            project_id=project_id,
+            min_trip_km=float(min_trip_km),
+            max_trip_km=float(max_trip_km)
+        )
         db.session.add(atelier)
         db.session.commit()
         return jsonify(atelier.to_dict())
@@ -653,6 +709,33 @@ def delete_project(project_id):
         return jsonify({'success': True, 'message': 'Projet supprimé'})
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/ateliers/<int:atelier_id>', methods=['PUT'])
+def update_atelier(atelier_id):
+    try:
+        atelier = Atelier.query.get(atelier_id)
+        if not atelier:
+            return jsonify({'error': 'Atelier not found'}), 404
+            
+        data = request.json
+        name = data.get('name')
+        min_trip_km = data.get('min_trip_km')
+        max_trip_km = data.get('max_trip_km')
+        
+        if name:
+            atelier.name = name
+        if min_trip_km is not None:
+            atelier.min_trip_km = float(min_trip_km)
+        if max_trip_km is not None:
+            atelier.max_trip_km = float(max_trip_km)
+            
+        db.session.commit()
+        return jsonify(atelier.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        if 'UNIQUE constraint failed' in str(e):
+             return jsonify({'error': f'Un atelier nommé "{name}" existe déjà.'}), 400
         return jsonify({'error': str(e)}), 400
 
 @app.route('/ateliers/<int:atelier_id>', methods=['DELETE'])
@@ -734,6 +817,178 @@ def atelier_performance(atelier_id):
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+
+
+@app.route('/reports/atelier/<int:atelier_id>/pdf', methods=['POST'])
+def atelier_performance_pdf(atelier_id):
+    """Generate detailed performance report PDF for single atelier."""
+    try:
+        data = request.json
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        result = generate_atelier_performance_report(atelier_id, start_date, end_date)
+        
+        if not result:
+            return jsonify({'error': 'No data found for this atelier'}), 404
+        
+        pdf_buffer = generate_atelier_pdf(result)
+        
+        filename = f"Rapport_Atelier_{result['atelier_name'].replace(' ', '_')}_{start_date}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+def generate_atelier_pdf(data):
+    """Generate PDF for atelier performance."""
+    pdf_buffer = io.BytesIO()
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#2c3e50'),
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    h2_style = ParagraphStyle(
+        'CustomH2',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#667eea'),
+        spaceBefore=15,
+        spaceAfter=10,
+        fontName='Helvetica-Bold'
+    )
+    
+    story = []
+    
+    # Header
+    story.append(Paragraph('📊 RAPPORT PERFORMANCE ATELIER', title_style))
+    story.append(Spacer(1, 0.1*inch))
+    
+    # Atelier Info Card
+    info_data = [
+        [f"Atelier: {data['atelier_name']}", f"Projet: {data['project_name']}"],
+        [f"Période: {data['date_range']}", f"Engins: {data['vehicle_count']}"]
+    ]
+    info_table = Table(info_data, colWidths=[3.5*inch, 3.5*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2d3748')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Main Metrics Grid
+    story.append(Paragraph('VUE D\'ENSEMBLE', h2_style))
+    
+    metrics_data = [
+        ['Trajets Total', 'Km Total', 'Heures Travaillées', 'Distance Moy.'],
+        [str(data['total_trips']), f"{data['total_km']} km", f"{data['working_hours']} h", f"{data['avg_trip_distance']} km"]
+    ]
+    
+    metrics_table = Table(metrics_data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch, 1.8*inch])
+    metrics_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 14),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#f7fafc')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(metrics_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Efficiency & Utilization with colors
+    story.append(Paragraph('INDICATEURS CLÉS', h2_style))
+    
+    kpi_data = [
+        ['Taux d\'Efficacité', 'Taux d\'Utilisation'],
+        [f"{data['efficiency_rate']}%", f"{data['utilization_rate']}%"]
+    ]
+    
+    kpi_table = Table(kpi_data, colWidths=[3.6*inch, 3.6*inch])
+    
+    eff_color = colors.green if data['efficiency_rate'] >= 80 else colors.orange if data['efficiency_rate'] >= 60 else colors.red
+    
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2b6cb0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 16),
+        ('TEXTCOLOR', (0, 1), (0, 1), eff_color), # Efficiency Color
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Vehicle Details Table
+    story.append(Paragraph('DÉTAILS DES ENGINS', h2_style))
+    
+    table_headers = ['Engin', 'Trajets', 'Km', 'Heures', 'Eff. %', 'Util. %']
+    table_data = [table_headers]
+    
+    for v in data['vehicles']:
+        table_data.append([
+            f"{v['name']}\n({v['id']})",
+            v['trips'],
+            v['km'],
+            v['working_hours'],
+            f"{v['efficiency']}%",
+            f"{v['utilization']}%"
+        ])
+        
+    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 1*inch, 1*inch, 0.9*inch, 0.9*inch])
+    vehicle_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'), # Left align names
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+    ]))
+    
+    story.append(vehicle_table)
+    
+    # Legend
+    story.append(Spacer(1, 0.2*inch))
+    legend_style = ParagraphStyle('Legend', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+    story.append(Paragraph("Efficacité = (Heures de Travail / Total Heures) * 100", legend_style))
+    story.append(Paragraph("Utilisation = (Heures de Conduite / Heures de Travail) * 100", legend_style))
+    
+    doc.build(story)
+    pdf_buffer.seek(0)
+    return pdf_buffer
 
 
 @app.route('/reports/project/<int:project_id>', methods=['POST'])

@@ -133,8 +133,11 @@ def seconds_to_hhmm(seconds: float):
     return f"{h:02d}:{m:02d}"
 
 
-def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF_HOUR, ref_min=DEFAULT_REF_MIN):
-    """Process DataFrame and aggregate vehicle working time and KM split at reference time."""
+def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF_HOUR, ref_min=DEFAULT_REF_MIN, vehicle_configs=None):
+    """
+    Process DataFrame and aggregate vehicle working time and KM split at reference time.
+    vehicle_configs: dict { vehicle_id: {'min_trip_km': float, 'max_trip_km': float} }
+    """
     # Skip empty rows
     df = df.dropna(how='all').copy()
     
@@ -203,6 +206,10 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
     else:
         df['__km'] = 0.0
         kmcol = '__km'
+        
+    # Default configs
+    default_min_km = 0.5
+    default_max_km = 15.0
 
     # Process each vehicle
     results = []
@@ -218,6 +225,16 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
         total_duration_course = 0.0
         total_duration_attente = 0.0
         total_duration_arret = 0.0
+        
+        # Determine strict bounds for this vehicle
+        v_min = default_min_km
+        v_max = default_max_km
+        v_movement = 'Move'
+        
+        if vehicle_configs and vehicle in vehicle_configs:
+            v_min = vehicle_configs[vehicle].get('min_trip_km', default_min_km)
+            v_max = vehicle_configs[vehicle].get('max_trip_km', default_max_km)
+            v_movement = vehicle_configs[vehicle].get('movement_type', 'Move')
 
         for i, row in g.iterrows():
             caa_raw = str(row[caacol]).strip().lower()
@@ -234,13 +251,17 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             
             if stop <= start:
                 continue
+                
+            dur_hours = (stop - start).total_seconds() / 3600.0
+            km = row.get(kmcol, 0.0)
             
-            km = row[kmcol]
-            total_dur = (stop - start).total_seconds()
+            total_dur = dur_hours
             
             # Update metric totals
             if activity_type == 'course':
-                trip_count += 1
+                # Only count as trip if valid distance AND movement type is 'Move'
+                if v_movement == 'Move' and v_min <= km <= v_max:
+                    trip_count += 1
                 total_duration_course += total_dur
             elif activity_type == 'attente':
                 total_duration_attente += total_dur
