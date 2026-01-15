@@ -7,6 +7,7 @@ from models import db, VehicleActivity, Vehicle, Project, Atelier
 import tempfile
 from datetime import datetime
 import pandas as pd
+from advanced_reports import generate_comparative_report, generate_atelier_performance_report, generate_project_overview
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -687,6 +688,72 @@ def unassign_vehicle(vehicle_id):
         return jsonify(vehicle.to_dict())
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+# --- Advanced Reporting System Routes ---
+
+@app.route('/reports/comparative', methods=['POST'])
+def comparative_report():
+    """Generate comparative analysis for multiple ateliers."""
+    try:
+        data = request.json
+        atelier_ids = data.get('atelier_ids', [])
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        if not atelier_ids:
+            return jsonify({'error': 'At least one atelier required'}), 400
+        
+        results = generate_comparative_report(atelier_ids, start_date, end_date)
+        
+        return jsonify({
+            'success': True,
+            'data': results,
+            'date_range': f"{start_date} to {end_date}"
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/reports/atelier/<int:atelier_id>', methods=['POST'])
+def atelier_performance(atelier_id):
+    """Generate detailed performance report for single atelier."""
+    try:
+        data = request.json
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        result = generate_atelier_performance_report(atelier_id, start_date, end_date)
+        
+        if not result:
+            return jsonify({'error': 'No data found for this atelier'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/reports/project/<int:project_id>', methods=['POST'])
+def project_overview(project_id):
+    """Generate project overview with all ateliers."""
+    try:
+        data = request.json
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        result = generate_project_overview(project_id, start_date, end_date)
+        
+        if not result:
+            return jsonify({'error': 'No data found for this project'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
         return jsonify({'error': str(e)}), 400
 
 def generate_pdf_report_by_date(target_date, records, vehicles_dict):
