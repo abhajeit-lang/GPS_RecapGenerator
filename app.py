@@ -160,6 +160,53 @@ def upload_file():
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
+@app.route('/recalculate', methods=['POST'])
+def recalculate_metrics():
+    """Recalculate trip counts for all activities using current atelier configs."""
+    try:
+        # Build vehicle configurations map
+        vehicle_configs = {}
+        all_vehicles = Vehicle.query.all()
+        for v in all_vehicles:
+            if v.atelier:
+                vehicle_configs[v.id] = {
+                    'min_trip_km': v.atelier.min_trip_km,
+                    'max_trip_km': v.atelier.max_trip_km,
+                    'movement_type': v.movement_type or 'Move'
+                }
+        
+        # Get all activities and recalculate trip counts
+        # Note: We can only recalculate trip_count based on stored KM data
+        # The original granular trip data is not stored, so we estimate based on avg
+        activities = VehicleActivity.query.all()
+        updated = 0
+        
+        for activity in activities:
+            v_id = activity.vehicle_code
+            if v_id in vehicle_configs:
+                config = vehicle_configs[v_id]
+                movement = config.get('movement_type', 'Move')
+                
+                # If vehicle is "Sur place", set trip count to 0
+                if movement == 'Sur place':
+                    if activity.trip_count != 0:
+                        activity.trip_count = 0
+                        updated += 1
+                # For "Move" vehicles, we cannot recalculate accurately without raw data
+                # Just leave as-is or notify user to re-upload
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mise à jour terminée. {updated} enregistrements modifiés.',
+            'updated': updated,
+            'note': 'Pour recalculer les trajets des véhicules "Move", veuillez re-uploader le fichier CSV.'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/dates')
 def get_dates():
     """Get list of available dates in database."""
@@ -898,7 +945,7 @@ def generate_atelier_pdf(data):
     story.append(Paragraph('VUE D\'ENSEMBLE', h2_style))
     
     metrics_data = [
-        ['Trajets Total', 'Km Total', 'Heures Travaillées', 'Distance Moy.'],
+        ['Cycles *', 'Km Total', 'Heures Travaillées', 'Distance Moy.'],
         [str(data['total_trips']), f"{data['total_km']} km", f"{data['working_hours']} h", f"{data['avg_trip_distance']} km"]
     ]
     
@@ -950,20 +997,24 @@ def generate_atelier_pdf(data):
     # Vehicle Details Table
     story.append(Paragraph('DÉTAILS DES ENGINS', h2_style))
     
-    table_headers = ['Engin', 'Trajets', 'Km', 'Heures', 'Eff. %', 'Util. %']
+    # Table Header
+    table_headers = ['Engin', 'Cycles *', 'Km', 'Heures', 'Nb Attente', 'Durée Attente']
     table_data = [table_headers]
     
     for v in data['vehicles']:
+        m_type = v.get('movement_type', 'Move')
+        trips_display = str(v['trips']) if m_type == 'Move' else 'N/A'
+        
         table_data.append([
             f"{v['name']}\n({v['id']})",
-            v['trips'],
+            trips_display,
             v['km'],
             v['working_hours'],
-            f"{v['efficiency']}%",
-            f"{v['utilization']}%"
+            v.get('attente_count', 0),
+            f"{v.get('duration_attente', 0)} h"
         ])
         
-    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 1*inch, 1*inch, 0.9*inch, 0.9*inch])
+    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 0.9*inch, 0.8*inch, 1.0*inch, 1.0*inch])
     vehicle_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -980,11 +1031,10 @@ def generate_atelier_pdf(data):
     
     story.append(vehicle_table)
     
-    # Legend
     story.append(Spacer(1, 0.2*inch))
     legend_style = ParagraphStyle('Legend', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
-    story.append(Paragraph("Efficacité = (Heures de Travail / Total Heures) * 100", legend_style))
-    story.append(Paragraph("Utilisation = (Heures de Conduite / Heures de Travail) * 100", legend_style))
+    story.append(Paragraph("* Cycles : Détection Intelligente - Si distance ≥ 70% de la médiane = 1 cycle complet, sinon = 0.5 cycle (arrêt en cours)", legend_style))
+    story.append(Paragraph("** Les engins 'Sur place' ne comptent pas de cycles.", legend_style))
     
     doc.build(story)
     pdf_buffer.seek(0)

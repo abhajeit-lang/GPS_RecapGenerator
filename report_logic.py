@@ -213,7 +213,10 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
 
     # Process each vehicle
     results = []
-    for vehicle, g in df.groupby(vcol):
+    # Process each vehicle
+    results = []
+    for vehicle_raw, g in df.groupby(vcol):
+        vehicle = str(vehicle_raw).strip() # Clean ID for lookup
         g = g.reset_index(drop=True)
         day_map = {} if include_date else None
         total_before_sec = 0.0
@@ -221,7 +224,8 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
         km_before = 0.0
         km_after = 0.0
         
-        trip_count = 0
+        trip_count = 0.0  # Now float for fractional cycles
+        attente_count = 0 # Count of waiting events
         total_duration_course = 0.0
         total_duration_attente = 0.0
         total_duration_arret = 0.0
@@ -235,6 +239,53 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             v_min = vehicle_configs[vehicle].get('min_trip_km', default_min_km)
             v_max = vehicle_configs[vehicle].get('max_trip_km', default_max_km)
             v_movement = vehicle_configs[vehicle].get('movement_type', 'Move')
+        else:
+             # Fallback: Check if config keys have whitespace issues
+            if vehicle_configs:
+                 for k, v in vehicle_configs.items():
+                     if str(k).strip() == vehicle:
+                         v_min = v.get('min_trip_km', default_min_km)
+                         v_max = v.get('max_trip_km', default_max_km)
+                         v_movement = v.get('movement_type', 'Move')
+                         break
+        
+        # DEBUG C105 - Log to file
+        if vehicle == 'C105':
+            try:
+                with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                    f.write(f"\n--- Processing C105 at {datetime.now()} ---\n")
+                    f.write(f"Config Key Found: {vehicle in vehicle_configs if vehicle_configs else 'No Configs'}\n")
+                    f.write(f"Applied Config: Min={v_min}, Max={v_max}, Movement={v_movement}\n")
+                    f.write(f"Column Map: {col_map}\n")
+                    # Log first 5 CAA values
+                    sample_caa = g[caacol].head(5).tolist()
+                    f.write(f"Sample CAA raw: {sample_caa}\n")
+            except: pass
+            print(f"DEBUG C105: Min={v_min}, Max={v_max}, Movement={v_movement}")
+            print(f"   Config Found? {vehicle in vehicle_configs if vehicle_configs else 'No Configs'}")
+
+        # SMART CYCLE DETECTION: Two-pass algorithm
+        # Pass 1: Collect all valid Course distances to calculate median
+        course_distances = []
+        if v_movement == 'Move':
+            for i, row in g.iterrows():
+                caa_raw = str(row[caacol]).strip().lower()
+                if 'course' in caa_raw:
+                    km = row.get(kmcol, 0.0)
+                    if v_min <= km <= v_max:
+                        course_distances.append(km)
+        
+        # Calculate median and threshold
+        median_distance = 0.0
+        cycle_threshold = 0.0
+        if len(course_distances) > 0:
+            course_distances.sort()
+            n = len(course_distances)
+            if n % 2 == 0:
+                median_distance = (course_distances[n//2 - 1] + course_distances[n//2]) / 2.0
+            else:
+                median_distance = course_distances[n//2]
+            cycle_threshold = median_distance * 0.7  # 70% threshold
 
         for i, row in g.iterrows():
             caa_raw = str(row[caacol]).strip().lower()
@@ -252,21 +303,57 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             if stop <= start:
                 continue
                 
-            dur_hours = (stop - start).total_seconds() / 3600.0
+            dur_seconds = (stop - start).total_seconds()
             km = row.get(kmcol, 0.0)
             
-            total_dur = dur_hours
+            # Use seconds for internal calculations, convert to hours for storage
+            total_dur_sec = dur_seconds
+            total_dur_hours = dur_seconds / 3600.0
             
-            # Update metric totals
+            # Update metric totals (in hours for consistency with storage)
             if activity_type == 'course':
-                # Only count as trip if valid distance AND movement type is 'Move'
+                # Smart cycle detection for 'Move' vehicles
                 if v_movement == 'Move' and v_min <= km <= v_max:
-                    trip_count += 1
-                total_duration_course += total_dur
+                    if median_distance > 0:
+                        # Detect half vs full cycle based on distance
+                        if km >= cycle_threshold:
+                            trip_count += 1.0  # Full cycle
+                            if vehicle == 'C105': 
+                                print(f"  > Accepted 1.0 (KM={km} >= {cycle_threshold:.2f})")
+                                try:
+                                    with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                                        f.write(f"  > Accepted 1.0 (KM={km} >= {cycle_threshold:.2f})\n")
+                                except: pass
+                        else:
+                            trip_count += 0.5  # Half cycle (stopped midway)
+                            if vehicle == 'C105': 
+                                print(f"  > Accepted 0.5 (KM={km} < {cycle_threshold:.2f})")
+                                try:
+                                    with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                                        f.write(f"  > Accepted 0.5 (KM={km} < {cycle_threshold:.2f})\n")
+                                except: pass
+                    else:
+                        # Fallback if no median (single trip case)
+                        trip_count += 1.0
+                        if vehicle == 'C105': 
+                            print(f"  > Accepted 1.0 (Fallback, KM={km})")
+                            try:
+                                with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                                    f.write(f"  > Accepted 1.0 (Fallback, KM={km})\n")
+                            except: pass
+                elif vehicle == 'C105':
+                     print(f"  > Rejected (KM={km} outside {v_min}-{v_max})")
+                     try:
+                        with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                            f.write(f"  > Rejected (KM={km} outside {v_min}-{v_max})\n")
+                     except: pass
+                
+                total_duration_course += total_dur_hours
             elif activity_type == 'attente':
-                total_duration_attente += total_dur
+                total_duration_attente += total_dur_hours
+                attente_count += 1 # Count waiting events
             elif activity_type == 'arret':
-                total_duration_arret += total_dur
+                total_duration_arret += total_dur_hours
             
             # Working time logic: Course + Attente = Working Time. Arrêt = Stop.
             is_working = activity_type in ('course', 'attente')
@@ -274,10 +361,10 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             # Split time and KM at reference time
             sec_before, sec_after = split_interval_at_ref(start, stop, ref_hour, ref_min)
             
-            # Proportionally allocate KM
-            if total_dur > 0:
-                km_b = km * (sec_before / total_dur)
-                km_a = km * (sec_after / total_dur)
+            # Proportionally allocate KM (using seconds for both)
+            if total_dur_sec > 0:
+                km_b = km * (sec_before / total_dur_sec)
+                km_a = km * (sec_after / total_dur_sec)
             else:
                 km_b = km_a = 0.0
             
@@ -307,11 +394,11 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
                 
                 if activity_type == 'course':
                     day_map[day_key]['trip_count'] += 1
-                    day_map[day_key]['dur_course'] += total_dur
+                    day_map[day_key]['dur_course'] += total_dur_hours
                 elif activity_type == 'attente':
-                    day_map[day_key]['dur_attente'] += total_dur
+                    day_map[day_key]['dur_attente'] += total_dur_hours
                 elif activity_type == 'arret':
-                    day_map[day_key]['dur_arret'] += total_dur
+                    day_map[day_key]['dur_arret'] += total_dur_hours
         
         results.append({
             'vehicle': vehicle,

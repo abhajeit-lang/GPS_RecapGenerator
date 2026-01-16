@@ -454,6 +454,14 @@
             </div>
 
             <div class="message" id="uploadMessage"></div>
+
+            <!-- Uploaded Files Section -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+                <h3 style="color: #333; margin-bottom: 15px;">📂 Données Téléchargées</h3>
+                <div id="uploadedFilesList" style="max-height: 400px; overflow-y: auto;">
+                    <p style="color: #999;">Chargement...</p>
+                </div>
+            </div>
         </div>
 
 
@@ -538,10 +546,16 @@
                         </select>
                     </div>
 
-                    <button onclick="generateAtelierPerformancePDF()"
-                        style="background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;">
-                        📄 Télécharger le Rapport PDF
-                    </button>
+                    <div style="display: flex; gap: 10px; margin-top: 15px;">
+                        <button onclick="recalculateData()"
+                            style="background: #38a169; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; flex: 1;">
+                            🔄 Mise à jour des Données
+                        </button>
+                        <button onclick="generateAtelierPerformancePDF()"
+                            style="background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; flex: 1;">
+                            📄 Télécharger le Rapport PDF
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1374,6 +1388,52 @@
                 });
         }
 
+        function loadUploadedFiles() {
+            fetch('/dates')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('uploadedFilesList');
+                    if (data.dates && data.dates.length > 0) {
+                        list.innerHTML = data.dates.map(date =>
+                            `<div style="display: flex; gap: 12px; margin-bottom: 12px; align-items: center; background: white; padding: 12px; border: 1px solid #ddd; border-radius: 6px;">
+                                <div style="flex: 1;">
+                                    <strong style="font-size: 14px;">📅 ${date}</strong>
+                                    <br><small style="color: #666;">Données GPS téléchargées</small>
+                                </div>
+                                <button onclick="deleteUploadedDate('${date}')" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-weight: bold;" onmouseover="this.style.background='#c82333'" onmouseout="this.style.background='#dc3545'">
+                                    🗑️ Supprimer
+                                </button>
+                            </div>`
+                        ).join('');
+                    } else {
+                        list.innerHTML = '<p style="color:#999;">Aucune donnée téléchargée. Téléchargez un fichier pour commencer.</p>';
+                    }
+                });
+        }
+
+        function deleteUploadedDate(date) {
+            if (!confirm(`Êtes-vous sûr de vouloir supprimer toutes les données pour ${date}?\n\nCette action est irréversible.`)) {
+                return;
+            }
+
+            fetch(`/report/delete/${date}`, {
+                method: 'DELETE'
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`✓ ${data.message}`);
+                        loadUploadedFiles();  // Refresh the list
+                        loadAvailableDates(); // Also refresh the Query tab list
+                    } else {
+                        alert(`Erreur: ${data.error || 'Impossible de supprimer'}`);
+                    }
+                })
+                .catch(err => {
+                    alert(`Erreur: ${err.message}`);
+                });
+        }
+
         function generateByMonth() {
             const month = document.getElementById('monthInput').value;
             const format = document.getElementById('reportFormat').value;
@@ -1591,6 +1651,33 @@
             });
         }
 
+        function recalculateData() {
+            if (!confirm('Mettre à jour les données avec la configuration actuelle?\n\nCette action recalculera les trajets des engins "Sur place" à 0.\n\nPour les engins "Move", veuillez re-uploader le fichier CSV.')) {
+                return;
+            }
+
+            document.getElementById('advReportLoading').style.display = 'block';
+            document.getElementById('advReportMessage').innerHTML = '';
+
+            fetch('/recalculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+                    if (data.success) {
+                        document.getElementById('advReportMessage').innerHTML = `<p style="color:#28a745;">✓ ${data.message}</p><p style="color:#666; font-size: 12px;">${data.note || ''}</p>`;
+                    } else {
+                        document.getElementById('advReportMessage').innerHTML = `<p style="color:#dc3545;">Erreur: ${data.error}</p>`;
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+                    document.getElementById('advReportMessage').innerHTML = `<p style="color:#dc3545;">Erreur: ${err.message}</p>`;
+                });
+        }
+
         function generateAtelierPerformancePDF() {
             const startDate = document.getElementById('perf_start_date').value;
             const endDate = document.getElementById('perf_end_date').value;
@@ -1700,8 +1787,15 @@
             if (tabName === 'advanced-reports') {
                 loadAteliersForComparative();
                 loadAteliersForPerformance();
+            } else if (tabName === 'upload') {
+                loadUploadedFiles();
             }
         };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUploadedFiles(); // Load initially just in case
+        });
     </script>
 </body>
 

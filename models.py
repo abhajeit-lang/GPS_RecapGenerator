@@ -78,10 +78,12 @@ class VehicleActivity(db.Model):
     km_after = db.Column(db.Float, default=0.0)
     
     # New metrics
-    trip_count = db.Column(db.Integer, default=0)
-    duration_course = db.Column(db.Float, default=0.0)  # Seconds
-    duration_attente = db.Column(db.Float, default=0.0) # Seconds
-    duration_arret = db.Column(db.Float, default=0.0)   # Seconds
+    # New metrics
+    trip_count = db.Column(db.Float, default=0.0) # Float to support 0.5 cycles
+    attente_count = db.Column(db.Integer, default=0) # New: Count of waiting events
+    duration_course = db.Column(db.Float, default=0.0)  # Hours
+    duration_attente = db.Column(db.Float, default=0.0) # Hours
+    duration_arret = db.Column(db.Float, default=0.0)   # Hours
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def __repr__(self):

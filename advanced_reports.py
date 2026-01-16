@@ -29,7 +29,11 @@ def get_date_range_data(atelier_id, start_date, end_date):
     ).all()
     
     # Aggregate metrics
+    # Smart cycle detection now handles fractional cycles (0.5 or 1.0)
+    # No need to divide by 2 anymore
     total_trips = sum(a.trip_count for a in activities)
+    total_trips = round(total_trips, 1)  # Round to 1 decimal for display
+    
     total_km = sum(a.km_before + a.km_after for a in activities)
     total_course = sum(a.duration_course for a in activities)  # seconds
     total_attente = sum(a.duration_attente for a in activities)
@@ -44,7 +48,10 @@ def get_date_range_data(atelier_id, start_date, end_date):
         v_activities = [a for a in activities if a.vehicle_code == v.id]
         if v_activities:
             v_trips = sum(a.trip_count for a in v_activities)
+            v_trips = round(v_trips, 1)  # Already fractional from smart detection
+            
             v_km = sum(a.km_before + a.km_after for a in v_activities)
+            v_attente_count = sum(a.attente_count for a in v_activities)
             v_course = sum(a.duration_course for a in v_activities)
             v_attente = sum(a.duration_attente for a in v_activities)
             v_arret = sum(a.duration_arret for a in v_activities)
@@ -54,13 +61,18 @@ def get_date_range_data(atelier_id, start_date, end_date):
             vehicles_data.append({
                 'id': v.id,
                 'name': v.name,
+                'movement_type': v.movement_type or 'Move',
                 'trips': v_trips,
+                'attente_count': v_attente_count,
+                'duration_attente': round(v_attente, 2),
                 'km': round(v_km, 2),
-                'working_hours': round(v_working / 3600, 2),
+                'working_hours': round(v_working, 2),
                 'efficiency': round((v_working / v_total * 100) if v_total > 0 else 0, 1),
                 'utilization': round((v_course / v_working * 100) if v_working > 0 else 0, 1)
             })
     
+    # Recalculate avg distance based on LEGS or CYCLES? 
+    # Usually avg distance per Cycle = Total KM / Total Cycles
     avg_trip_distance = round(total_km / total_trips, 2) if total_trips > 0 else 0
     efficiency_rate = round((total_working_time / total_time * 100) if total_time > 0 else 0, 1)
     utilization_rate = round((total_course / total_working_time * 100) if total_working_time > 0 else 0, 1)
@@ -68,7 +80,7 @@ def get_date_range_data(atelier_id, start_date, end_date):
     return {
         'atelier_id': atelier_id,
         'vehicle_count': len(vehicles),
-        'total_trips': total_trips,
+        'total_trips': total_trips, # Now represents Cycles
         'total_km': round(total_km, 2),
         'avg_trip_distance': avg_trip_distance,
         'working_hours': round(total_working_time / 3600, 2),
