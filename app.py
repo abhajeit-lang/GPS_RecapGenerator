@@ -141,7 +141,9 @@ def upload_file():
                         hours_after_20h=metrics['after_sec'] / 3600,
                         km_before=metrics['km_before'],
                         km_after=metrics['km_after'],
+                        km_out_of_range=metrics.get('km_out_of_range', 0.0),
                         trip_count=metrics.get('trip_count', 0),
+                        attente_count=metrics.get('attente_count', 0),
                         duration_course=metrics.get('dur_course', 0.0),
                         duration_attente=metrics.get('dur_attente', 0.0),
                         duration_arret=metrics.get('dur_arret', 0.0)
@@ -162,9 +164,30 @@ def upload_file():
 
 @app.route('/recalculate', methods=['POST'])
 def recalculate_metrics():
-    """Recalculate trip counts for all activities using current atelier configs."""
+    """Recalculate trip counts and clean up cached temp files."""
     try:
-        # Build vehicle configurations map
+        import shutil
+        
+        # 1. Clean up cached temp files
+        files_deleted = 0
+        output_folder = app.config.get('OUTPUT_FOLDER')
+        upload_folder = app.config.get('UPLOAD_FOLDER')
+        
+        if output_folder and Path(output_folder).exists():
+            for f in Path(output_folder).glob('*'):
+                try:
+                    f.unlink()
+                    files_deleted += 1
+                except: pass
+        
+        if upload_folder and Path(upload_folder).exists():
+            for f in Path(upload_folder).glob('*'):
+                try:
+                    f.unlink()
+                    files_deleted += 1
+                except: pass
+        
+        # 2. Build vehicle configurations map
         vehicle_configs = {}
         all_vehicles = Vehicle.query.all()
         for v in all_vehicles:
@@ -175,9 +198,7 @@ def recalculate_metrics():
                     'movement_type': v.movement_type or 'Move'
                 }
         
-        # Get all activities and recalculate trip counts
-        # Note: We can only recalculate trip_count based on stored KM data
-        # The original granular trip data is not stored, so we estimate based on avg
+        # 3. Get all activities and recalculate trip counts
         activities = VehicleActivity.query.all()
         updated = 0
         
@@ -192,16 +213,15 @@ def recalculate_metrics():
                     if activity.trip_count != 0:
                         activity.trip_count = 0
                         updated += 1
-                # For "Move" vehicles, we cannot recalculate accurately without raw data
-                # Just leave as-is or notify user to re-upload
         
         db.session.commit()
         
         return jsonify({
             'success': True,
-            'message': f'Mise à jour terminée. {updated} enregistrements modifiés.',
+            'message': f'✓ Mise à jour terminée!\n• {files_deleted} fichiers cache supprimés\n• {updated} enregistrements modifiés',
+            'files_deleted': files_deleted,
             'updated': updated,
-            'note': 'Pour recalculer les trajets des véhicules "Move", veuillez re-uploader le fichier CSV.'
+            'note': 'Les données sont maintenant à jour. Pour recalculer complètement, veuillez re-uploader le fichier CSV.'
         })
     except Exception as e:
         db.session.rollback()
@@ -896,8 +916,9 @@ def atelier_performance_pdf(atelier_id):
 
 def generate_atelier_pdf(data):
     """Generate PDF for atelier performance."""
+    from reportlab.lib.pagesizes import A4, landscape
     pdf_buffer = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
     
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
@@ -998,7 +1019,7 @@ def generate_atelier_pdf(data):
     story.append(Paragraph('DÉTAILS DES ENGINS', h2_style))
     
     # Table Header
-    table_headers = ['Engin', 'Cycles *', 'Km', 'Heures', 'Nb Attente', 'Durée Attente']
+    table_headers = ['Engin', 'Cycles *', 'Km', 'KM Hors Travail', 'Hrs Travaillé', 'Nb Attente', 'Durée Attente']
     table_data = [table_headers]
     
     for v in data['vehicles']:
@@ -1009,12 +1030,13 @@ def generate_atelier_pdf(data):
             f"{v['name']}\n({v['id']})",
             trips_display,
             v['km'],
+            v.get('km_out_of_range', 0),
             v['working_hours'],
             v.get('attente_count', 0),
             f"{v.get('duration_attente', 0)} h"
         ])
         
-    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 0.9*inch, 0.8*inch, 1.0*inch, 1.0*inch])
+    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 0.8*inch, 1.2*inch, 1.0*inch, 0.9*inch, 1.1*inch])
     vehicle_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),

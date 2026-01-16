@@ -78,9 +78,9 @@ class VehicleActivity(db.Model):
     km_after = db.Column(db.Float, default=0.0)
     
     # New metrics
-    # New metrics
     trip_count = db.Column(db.Float, default=0.0) # Float to support 0.5 cycles
-    attente_count = db.Column(db.Integer, default=0) # New: Count of waiting events
+    attente_count = db.Column(db.Integer, default=0) # Count of waiting events
+    km_out_of_range = db.Column(db.Float, default=0.0) # KM outside valid trip range
     duration_course = db.Column(db.Float, default=0.0)  # Hours
     duration_attente = db.Column(db.Float, default=0.0) # Hours
     duration_arret = db.Column(db.Float, default=0.0)   # Hours

@@ -226,6 +226,8 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
         
         trip_count = 0.0  # Now float for fractional cycles
         attente_count = 0 # Count of waiting events
+        km_in_range = 0.0  # KM of valid trips (within min-max)
+        km_out_of_range = 0.0  # KM of trips outside range
         total_duration_course = 0.0
         total_duration_attente = 0.0
         total_duration_arret = 0.0
@@ -314,6 +316,7 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             if activity_type == 'course':
                 # Smart cycle detection for 'Move' vehicles
                 if v_movement == 'Move' and v_min <= km <= v_max:
+                    km_in_range += km  # Valid trip km
                     if median_distance > 0:
                         # Detect half vs full cycle based on distance
                         if km >= cycle_threshold:
@@ -341,12 +344,16 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
                                 with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
                                     f.write(f"  > Accepted 1.0 (Fallback, KM={km})\n")
                             except: pass
-                elif vehicle == 'C105':
-                     print(f"  > Rejected (KM={km} outside {v_min}-{v_max})")
-                     try:
-                        with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
-                            f.write(f"  > Rejected (KM={km} outside {v_min}-{v_max})\n")
-                     except: pass
+                else:
+                    # Trip outside range - accumulate as out-of-range
+                    if activity_type == 'course':
+                        km_out_of_range += km
+                    if vehicle == 'C105':
+                         print(f"  > Rejected (KM={km} outside {v_min}-{v_max})")
+                         try:
+                            with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
+                                f.write(f"  > Rejected (KM={km} outside {v_min}-{v_max})\n")
+                         except: pass
                 
                 total_duration_course += total_dur_hours
             elif activity_type == 'attente':
@@ -381,8 +388,8 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
                 if day_key not in day_map:
                     day_map[day_key] = {
                         'before_sec': 0.0, 'after_sec': 0.0, 
-                        'km_before': 0.0, 'km_after': 0.0,
-                        'trip_count': 0, 'dur_course': 0.0, 'dur_attente': 0.0, 'dur_arret': 0.0
+                        'km_before': 0.0, 'km_after': 0.0, 'km_out_of_range': 0.0,
+                        'trip_count': 0, 'attente_count': 0, 'dur_course': 0.0, 'dur_attente': 0.0, 'dur_arret': 0.0
                     }
                 
                 if is_working:
@@ -393,9 +400,13 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
                 day_map[day_key]['km_after'] += km_a
                 
                 if activity_type == 'course':
+                    # Track out-of-range km at day level
+                    if not (v_min <= km <= v_max):
+                        day_map[day_key]['km_out_of_range'] += km
                     day_map[day_key]['trip_count'] += 1
                     day_map[day_key]['dur_course'] += total_dur_hours
                 elif activity_type == 'attente':
+                    day_map[day_key]['attente_count'] += 1
                     day_map[day_key]['dur_attente'] += total_dur_hours
                 elif activity_type == 'arret':
                     day_map[day_key]['dur_arret'] += total_dur_hours
@@ -408,9 +419,12 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             'time_after_seconds': int(round(total_after_sec)),
             'km_before': round(km_before, 3),
             'km_after': round(km_after, 3),
+            'km_in_range': round(km_in_range, 3),  # KM of valid trips
+            'km_out_of_range': round(km_out_of_range, 3),  # KM outside range
             'day_map': day_map,
             # Aggregated totals for the whole file/vehicle
             'trip_count': trip_count,
+            'attente_count': attente_count, # NEW: Count of waiting events
             'total_duration_course': total_duration_course,
             'total_duration_attente': total_duration_attente,
             'total_duration_arret': total_duration_arret

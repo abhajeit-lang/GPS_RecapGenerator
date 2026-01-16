@@ -51,6 +51,7 @@ def get_date_range_data(atelier_id, start_date, end_date):
             v_trips = round(v_trips, 1)  # Already fractional from smart detection
             
             v_km = sum(a.km_before + a.km_after for a in v_activities)
+            v_km_out_of_range = sum(a.km_out_of_range for a in v_activities)
             v_attente_count = sum(a.attente_count for a in v_activities)
             v_course = sum(a.duration_course for a in v_activities)
             v_attente = sum(a.duration_attente for a in v_activities)
@@ -66,6 +67,7 @@ def get_date_range_data(atelier_id, start_date, end_date):
                 'attente_count': v_attente_count,
                 'duration_attente': round(v_attente, 2),
                 'km': round(v_km, 2),
+                'km_out_of_range': round(v_km_out_of_range, 2),
                 'working_hours': round(v_working, 2),
                 'efficiency': round((v_working / v_total * 100) if v_total > 0 else 0, 1),
                 'utilization': round((v_course / v_working * 100) if v_working > 0 else 0, 1)
