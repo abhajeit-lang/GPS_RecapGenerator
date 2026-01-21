@@ -273,3 +273,119 @@ Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
   > Rejected (KM=0.1 outside 0.7-5.0)
   > Accepted 0.5 (KM=1.07 < 1.49)
   > Accepted 0.5 (KM=1.03 < 1.49)
+
+--- Processing C105 at 2026-01-16 15:17:10.585942 ---
+Config Key Found: True
+Applied Config: Min=0.7, Max=5.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+  > Accepted 1.0 (KM=2.21 >= 1.49)
+  > Accepted 1.0 (KM=2.19 >= 1.49)
+  > Accepted 0.5 (KM=1.15 < 1.49)
+  > Accepted 0.5 (KM=1.05 < 1.49)
+  > Accepted 0.5 (KM=1.17 < 1.49)
+  > Accepted 0.5 (KM=1.09 < 1.49)
+  > Accepted 0.5 (KM=1.14 < 1.49)
+  > Accepted 0.5 (KM=1.03 < 1.49)
+  > Accepted 0.5 (KM=1.13 < 1.49)
+  > Accepted 0.5 (KM=1.02 < 1.49)
+  > Accepted 1.0 (KM=2.14 >= 1.49)
+  > Accepted 1.0 (KM=2.15 >= 1.49)
+  > Accepted 1.0 (KM=2.13 >= 1.49)
+  > Accepted 0.5 (KM=1.0 < 1.49)
+  > Accepted 0.5 (KM=1.04 < 1.49)
+  > Accepted 1.0 (KM=2.13 >= 1.49)
+  > Accepted 1.0 (KM=2.23 >= 1.49)
+  > Accepted 1.0 (KM=2.17 >= 1.49)
+  > Rejected (KM=0.0 outside 0.7-5.0)
+  > Accepted 0.5 (KM=1.17 < 1.49)
+  > Accepted 0.5 (KM=1.01 < 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.18 >= 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.19 >= 1.49)
+  > Accepted 1.0 (KM=2.5 >= 1.49)
+  > Accepted 1.0 (KM=2.71 >= 1.49)
+  > Accepted 1.0 (KM=2.59 >= 1.49)
+  > Accepted 1.0 (KM=2.64 >= 1.49)
+  > Accepted 1.0 (KM=2.58 >= 1.49)
+  > Accepted 1.0 (KM=2.57 >= 1.49)
+  > Accepted 1.0 (KM=2.52 >= 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.25 >= 1.49)
+  > Rejected (KM=0.3 outside 0.7-5.0)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.22 >= 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.08 >= 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.09 >= 1.49)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 0.5 (KM=1.07 < 1.49)
+  > Accepted 0.5 (KM=1.03 < 1.49)
+
+--- Processing C105 at 2026-01-16 15:23:11.678667 ---
+Config Key Found: True
+Applied Config: Min=0.7, Max=5.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.24 >= 1.57)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.29 >= 1.57)
+  > Accepted 0.5 (KM=1.15 < 1.57)
+  > Accepted 0.5 (KM=1.11 < 1.57)
+  > Accepted 0.5 (KM=1.18 < 1.57)
+  > Rejected (KM=0.2 outside 0.7-5.0)
+  > Accepted 0.5 (KM=0.9 < 1.57)
+  > Accepted 0.5 (KM=1.17 < 1.57)
+  > Accepted 0.5 (KM=1.06 < 1.57)
+  > Rejected (KM=0.0 outside 0.7-5.0)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 0.5 (KM=1.12 < 1.57)
+  > Accepted 0.5 (KM=1.18 < 1.57)
+  > Accepted 1.0 (KM=2.41 >= 1.57)
+  > Accepted 1.0 (KM=2.3 >= 1.57)
+  > Accepted 1.0 (KM=2.38 >= 1.57)
+  > Accepted 1.0 (KM=2.25 >= 1.57)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.23 >= 1.57)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 0.5 (KM=1.35 < 1.57)
+  > Accepted 0.5 (KM=1.17 < 1.57)
+  > Accepted 1.0 (KM=2.35 >= 1.57)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.3 >= 1.57)
+  > Rejected (KM=0.1 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.34 >= 1.57)
+  > Rejected (KM=0.0 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.14 >= 1.57)
+  > Accepted 0.5 (KM=1.18 < 1.57)
+  > Accepted 0.5 (KM=1.08 < 1.57)
+  > Accepted 1.0 (KM=2.25 >= 1.57)
+  > Accepted 1.0 (KM=2.25 >= 1.57)
+  > Accepted 1.0 (KM=4.7 >= 1.57)
+  > Accepted 1.0 (KM=4.91 >= 1.57)
+  > Accepted 1.0 (KM=2.12 >= 1.57)
+  > Rejected (KM=0.3 outside 0.7-5.0)
+  > Accepted 1.0 (KM=2.25 >= 1.57)
+  > Accepted 1.0 (KM=2.27 >= 1.57)
+  > Accepted 1.0 (KM=2.58 >= 1.57)
+
+--- Processing C105 at 2026-01-16 15:45:00.044898 ---
+Config Key Found: True
+Applied Config: Min=0.7, Max=5.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-01-16 15:45:40.933587 ---
+Config Key Found: True
+Applied Config: Min=0.7, Max=5.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-01-19 11:48:14.367320 ---
+Config Key Found: True
+Applied Config: Min=0.8, Max=4.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']

@@ -39,9 +39,30 @@ def load_file(path: Path):
     if path.suffix.lower() in ('.xls', '.xlsx'):
         df = pd.read_excel(path)
     else:
-        # Read with semicolon separator, skip first row (metadata)
-        df = pd.read_csv(path, encoding='utf-8', sep=';', skiprows=1)
-    return df
+        # Try different encodings and header positions
+        encodings = ['utf-8', 'latin-1', 'cp1252']
+        for enc in encodings:
+            try:
+                # First pass: read a few lines to find the header
+                # We look for a row containing 'CODE' and 'CAA'
+                temp_df = pd.read_csv(path, encoding=enc, sep=';', nrows=10, header=None)
+                header_idx = 0
+                for idx, row in temp_df.iterrows():
+                    row_str = " ".join(str(val).upper() for val in row.values)
+                    if 'CODE' in row_str and 'CAA' in row_str:
+                        header_idx = idx
+                        break
+                
+                df = pd.read_csv(path, encoding=enc, sep=';', skiprows=header_idx)
+                # If we skipped metadata, the first row might still be part of the header or empty
+                if 'CODE' not in "".join(str(c).upper() for c in df.columns):
+                     # Try again without skiprows if detection failed
+                     df = pd.read_csv(path, encoding=enc, sep=';')
+                return df
+            except Exception:
+                continue
+        # Final fallback
+        return pd.read_csv(path, encoding='utf-8', sep=';', skiprows=1)
 
 
 def parse_datetime(x):
@@ -52,6 +73,8 @@ def parse_datetime(x):
     s = str(x).strip()
     if not s:
         return None
+    # Remove any non-breaking spaces or weird chars
+    s = s.replace('\xa0', ' ').replace('\u202f', ' ')
     for fmt in ("%Y-%m-%d %H:%M:%S","%Y-%m-%d %H:%M","%d/%m/%Y %H:%M:%S","%d/%m/%Y %H:%M","%d-%m-%Y %H:%M:%S","%d-%m-%Y %H:%M"):
         try:
             return datetime.strptime(s, fmt)
@@ -85,14 +108,27 @@ def parse_duration(x):
 
 
 def parse_km(x):
-    """Parse KM value, handling comma as decimal separator."""
+    """Parse KM value, handling thousands separators and comma decimals."""
     if pd.isna(x):
         return 0.0
     s = str(x).strip()
     if not s:
         return 0.0
-    # Replace comma with dot for decimal
-    s = s.replace(',', '.')
+    # Special case: '74 360' might be 74.360 in some contexts, but usually spaces are thousands separators.
+    # We remove all spaces and non-breaking spaces.
+    s = s.replace(' ', '').replace('\xa0', '').replace('\u202f', '')
+    
+    # If there are multiple dots/commas, it's a mess. 
+    # Usually European: "1.234,56" -> remove "." and replace "," with "."
+    if ',' in s and '.' in s:
+        # Determine which one is the decimal. Usually the last one.
+        if s.find(',') > s.find('.'): # 1.234,56
+             s = s.replace('.', '').replace(',', '.')
+        else: # 1,234.56
+             s = s.replace(',', '')
+    elif ',' in s:
+        s = s.replace(',', '.')
+        
     try:
         return float(s)
     except Exception:
@@ -313,48 +349,24 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
             total_dur_hours = dur_seconds / 3600.0
             
             # Update metric totals (in hours for consistency with storage)
-            if activity_type == 'course':
-                # Smart cycle detection for 'Move' vehicles
-                if v_movement == 'Move' and v_min <= km <= v_max:
-                    km_in_range += km  # Valid trip km
-                    if median_distance > 0:
-                        # Detect half vs full cycle based on distance
-                        if km >= cycle_threshold:
-                            trip_count += 1.0  # Full cycle
-                            if vehicle == 'C105': 
-                                print(f"  > Accepted 1.0 (KM={km} >= {cycle_threshold:.2f})")
-                                try:
-                                    with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
-                                        f.write(f"  > Accepted 1.0 (KM={km} >= {cycle_threshold:.2f})\n")
-                                except: pass
-                        else:
-                            trip_count += 0.5  # Half cycle (stopped midway)
-                            if vehicle == 'C105': 
-                                print(f"  > Accepted 0.5 (KM={km} < {cycle_threshold:.2f})")
-                                try:
-                                    with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
-                                        f.write(f"  > Accepted 0.5 (KM={km} < {cycle_threshold:.2f})\n")
-                                except: pass
+            # Categorize KM for current row (Vehicle level)
+            is_valid_work = (activity_type == 'course' and v_movement == 'Move' and v_min <= km <= v_max)
+            
+            if is_valid_work:
+                km_in_range += km
+                if median_distance > 0:
+                    # Detect half vs full cycle based on distance
+                    if km >= cycle_threshold:
+                        trip_count += 1.0  # Full cycle
                     else:
-                        # Fallback if no median (single trip case)
-                        trip_count += 1.0
-                        if vehicle == 'C105': 
-                            print(f"  > Accepted 1.0 (Fallback, KM={km})")
-                            try:
-                                with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
-                                    f.write(f"  > Accepted 1.0 (Fallback, KM={km})\n")
-                            except: pass
+                        trip_count += 0.5  # Half cycle (stopped midway)
                 else:
-                    # Trip outside range - accumulate as out-of-range
-                    if activity_type == 'course':
-                        km_out_of_range += km
-                    if vehicle == 'C105':
-                         print(f"  > Rejected (KM={km} outside {v_min}-{v_max})")
-                         try:
-                            with open(r'c:\Users\user\Documents\GPS_Recap\debug_log.txt', 'a') as f:
-                                f.write(f"  > Rejected (KM={km} outside {v_min}-{v_max})\n")
-                         except: pass
-                
+                    trip_count += 1.0 # Fallback
+            else:
+                km_out_of_range += km
+            
+            # Update duration metrics
+            if activity_type == 'course':
                 total_duration_course += total_dur_hours
             elif activity_type == 'attente':
                 total_duration_attente += total_dur_hours
@@ -399,10 +411,13 @@ def process_dataframe(df: pd.DataFrame, include_date=False, ref_hour=DEFAULT_REF
                 day_map[day_key]['km_before'] += km_b
                 day_map[day_key]['km_after'] += km_a
                 
+                # Categorize KM for this row
+                is_valid_work = (activity_type == 'course' and v_movement == 'Move' and v_min <= km <= v_max)
+                
+                if not is_valid_work:
+                    day_map[day_key]['km_out_of_range'] += km
+                
                 if activity_type == 'course':
-                    # Track out-of-range km at day level
-                    if not (v_min <= km <= v_max):
-                        day_map[day_key]['km_out_of_range'] += km
                     day_map[day_key]['trip_count'] += 1
                     day_map[day_key]['dur_course'] += total_dur_hours
                 elif activity_type == 'attente':

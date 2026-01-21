@@ -963,11 +963,11 @@ def generate_atelier_pdf(data):
     story.append(Spacer(1, 0.2*inch))
     
     # Main Metrics Grid
-    story.append(Paragraph('VUE D\'ENSEMBLE', h2_style))
+    story.append(Paragraph('VUE D\'ENSEMBLE (TRAVAIL)', h2_style))
     
     metrics_data = [
-        ['Cycles *', 'Km Total', 'Heures Travaillées', 'Distance Moy.'],
-        [str(data['total_trips']), f"{data['total_km']} km", f"{data['working_hours']} h", f"{data['avg_trip_distance']} km"]
+        ['Engins', 'Cycles', 'KM Travaillé', 'Hrs Travaillé'],
+        [str(data['vehicle_count']), str(data['total_trips']), f"{data['total_km_work']} km", f"{data['working_hours']} h"]
     ]
     
     metrics_table = Table(metrics_data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch, 1.8*inch])
@@ -987,8 +987,28 @@ def generate_atelier_pdf(data):
     story.append(metrics_table)
     story.append(Spacer(1, 0.2*inch))
     
+    # Secondary Metrics - operational
+    story.append(Paragraph('VUE OPÉRATIONNELLE', h2_style))
+    op_data = [
+        ['KM Hors Travail', 'Distance Moy./Cycle', 'Rapport Km Trav./Total'],
+        [f"{data['total_km_out']} km", f"{data['avg_trip_distance']} km", f"{round(data['total_km_work']/data['total_km']*100, 1) if data['total_km']>0 else 0}%"]
+    ]
+    op_table = Table(op_data, colWidths=[2.4*inch, 2.4*inch, 2.4*inch])
+    op_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#718096')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(op_table)
+    story.append(Spacer(1, 0.2*inch))
+    
     # Efficiency & Utilization with colors
-    story.append(Paragraph('INDICATEURS CLÉS', h2_style))
+    story.append(Paragraph('PERFORMANCE & EFFICIENCE', h2_style))
     
     kpi_data = [
         ['Taux d\'Efficacité', 'Taux d\'Utilisation'],
@@ -1018,8 +1038,8 @@ def generate_atelier_pdf(data):
     # Vehicle Details Table
     story.append(Paragraph('DÉTAILS DES ENGINS', h2_style))
     
-    # Table Header
-    table_headers = ['Engin', 'Cycles *', 'Km', 'KM Hors Travail', 'Hrs Travaillé', 'Nb Attente', 'Durée Attente']
+    # Table Header - User requested order
+    table_headers = ['Engin', 'Cycles', 'KM Travaillé', 'Hrs Travaillé', 'KM Hors Travail', "Nbr d'attente", "Durée d'attente"]
     table_data = [table_headers]
     
     for v in data['vehicles']:
@@ -1030,13 +1050,13 @@ def generate_atelier_pdf(data):
             f"{v['name']}\n({v['id']})",
             trips_display,
             v['km'],
-            v.get('km_out_of_range', 0),
             v['working_hours'],
+            v.get('km_out_of_range', 0),
             v.get('attente_count', 0),
             f"{v.get('duration_attente', 0)} h"
         ])
         
-    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.8*inch, 0.8*inch, 1.2*inch, 1.0*inch, 0.9*inch, 1.1*inch])
+    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.7*inch, 1.0*inch, 1.0*inch, 1.1*inch, 1.0*inch, 1.0*inch])
     vehicle_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
