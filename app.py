@@ -915,130 +915,232 @@ def atelier_performance_pdf(atelier_id):
 
 
 def generate_atelier_pdf(data):
-    """Generate PDF for atelier performance."""
+    """Generate professional PDF for atelier performance."""
     from reportlab.lib.pagesizes import A4, landscape
-    pdf_buffer = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), topMargin=0.5*inch, bottomMargin=0.5*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    from reportlab.platypus import PageBreak, KeepTogether
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from datetime import datetime
     
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=24,
-        textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=20,
-        alignment=TA_CENTER,
-        fontName='Helvetica-Bold'
+    pdf_buffer = io.BytesIO()
+    
+    # Custom page template with header/footer
+    class NumberedCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self.pages = []
+            
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
+            
+        def save(self):
+            page_count = len(self.pages)
+            for page_num, page in enumerate(self.pages, 1):
+                self.__dict__.update(page)
+                self.draw_page_elements(page_num, page_count)
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
+            
+        def draw_page_elements(self, page_num, page_count):
+            # Footer
+            self.setFont("Helvetica", 8)
+            self.setFillColor(colors.HexColor('#64748b'))
+            self.drawRightString(landscape(A4)[0] - 20*mm, 15*mm, f"Page {page_num}/{page_count}")
+            self.drawString(20*mm, 15*mm, f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+    
+    doc = SimpleDocTemplate(
+        pdf_buffer, 
+        pagesize=landscape(A4), 
+        topMargin=15*mm, 
+        bottomMargin=20*mm, 
+        leftMargin=15*mm, 
+        rightMargin=15*mm
     )
     
-    h2_style = ParagraphStyle(
-        'CustomH2',
+    styles = getSampleStyleSheet()
+    
+    # Soft, eye-comfortable color palette
+    PRIMARY_DARK = colors.HexColor('#3b82f6')      # Bright blue (was very dark)
+    PRIMARY = colors.HexColor('#60a5fa')           # Light blue
+    ACCENT = colors.HexColor('#0ea5e9')            # Softer cyan blue
+    ACCENT_LIGHT = colors.HexColor('#38bdf8')      # Light cyan
+    SUCCESS = colors.HexColor('#22c55e')           # Soft green
+    WARNING = colors.HexColor('#f59e0b')           # Amber (unchanged)
+    DANGER = colors.HexColor('#ef4444')            # Red (unchanged)
+    LIGHT_BG = colors.HexColor('#f1f5f9')          # Very light blue-gray
+    BORDER = colors.HexColor('#cbd5e1')            # Soft gray border
+    HEADER_BG = colors.HexColor('#0284c7')         # Medium blue for headers
+    SECTION_HEADER = colors.HexColor('#1e40af')    # Deep blue for section titles
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'ModernTitle',
+        parent=styles['Heading1'],
+        fontSize=22,
+        textColor=colors.white,
+        spaceAfter=0,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=ACCENT_LIGHT,
+        fontName='Helvetica',
+        alignment=TA_CENTER
+    )
+    
+    section_title_style = ParagraphStyle(
+        'SectionTitle',
         parent=styles['Heading2'],
-        fontSize=14,
-        textColor=colors.HexColor('#667eea'),
-        spaceBefore=15,
-        spaceAfter=10,
-        fontName='Helvetica-Bold'
+        fontSize=12,
+        textColor=SECTION_HEADER,
+        spaceBefore=8,
+        spaceAfter=6,
+        fontName='Helvetica-Bold',
+        borderPadding=(0, 0, 0, 3),
+        borderColor=ACCENT,
+        borderWidth=0,
+        leftIndent=0
+    )
+    
+    card_title_style = ParagraphStyle(
+        'CardTitle',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#475569'),       # Darker gray for readability
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        spaceAfter=2
+    )
+    
+    card_value_style = ParagraphStyle(
+        'CardValue',
+        parent=styles['Normal'],
+        fontSize=18,
+        textColor=colors.HexColor('#1e293b'),       # Very dark gray (almost black)
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
     )
     
     story = []
     
-    # Header
-    story.append(Paragraph('📊 RAPPORT PERFORMANCE ATELIER', title_style))
-    story.append(Spacer(1, 0.1*inch))
+    # === PROFESSIONAL HEADER WITH COLOR BAR ===
+    header_table_data = [[Paragraph('RAPPORT DE PERFORMANCE', title_style)]]
+    header_table = Table(header_table_data, colWidths=[landscape(A4)[0] - 30*mm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        ('LEFTPADDING', (0, 0), (-1, -1), 20),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 20),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 3*mm))
     
-    # Atelier Info Card
+    # === PROJECT INFO SECTION ===
     info_data = [
-        [f"Atelier: {data['atelier_name']}", f"Projet: {data['project_name']}"],
-        [f"Période: {data['date_range']}", f"Engins: {data['vehicle_count']}"]
+        [
+            Paragraph(f"<b>Atelier:</b> {data['atelier_name']}", styles['Normal']),
+            Paragraph(f"<b>Projet:</b> {data['project_name']}", styles['Normal'])
+        ],
+        [
+            Paragraph(f"<b>Période:</b> {data['date_range']}", styles['Normal']),
+            Paragraph(f"<b>Engins:</b> {data['vehicle_count']}", styles['Normal'])
+        ]
     ]
-    info_table = Table(info_data, colWidths=[3.5*inch, 3.5*inch])
+    info_table = Table(info_data, colWidths=[(landscape(A4)[0] - 30*mm) / 2] * 2)
     info_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 12),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2d3748')),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+        ('TEXTCOLOR', (0, 0), (-1, -1), PRIMARY),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 15),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 15),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
     ]))
     story.append(info_table)
-    story.append(Spacer(1, 0.2*inch))
+    story.append(Spacer(1, 6*mm))
     
-    # Main Metrics Grid
-    story.append(Paragraph('VUE D\'ENSEMBLE (TRAVAIL)', h2_style))
+    # === OVERVIEW CARDS SECTION ===
+    story.append(Paragraph('VUE D\'ENSEMBLE (TRAVAIL)', section_title_style))
+    story.append(Spacer(1, 2*mm))
     
-    metrics_data = [
-        ['Engins', 'Cycles', 'KM Travaillé', 'Hrs Travaillé'],
-        [str(data['vehicle_count']), str(data['total_trips']), f"{data['total_km_work']} km", f"{data['working_hours']} h"]
+    overview_data = [
+        [
+            Paragraph('Engins', card_title_style),
+            Paragraph('Cycles', card_title_style),
+            Paragraph('KM Travaillé', card_title_style),
+            Paragraph('Hrs Travaillé', card_title_style)
+        ],
+        [
+            Paragraph(f"<b>{data['vehicle_count']}</b>", card_value_style),
+            Paragraph(f"<b>{data['total_trips']}</b>", card_value_style),
+            Paragraph(f"<b>{data['total_km_work']}</b>", card_value_style),
+            Paragraph(f"<b>{data['working_hours']}</b>", card_value_style)
+        ]
     ]
     
-    metrics_table = Table(metrics_data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch, 1.8*inch])
-    metrics_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+    col_width = (landscape(A4)[0] - 30*mm) / 4
+    overview_table = Table(overview_data, colWidths=[col_width] * 4, rowHeights=[8*mm, 12*mm])
+    overview_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.white),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 1), (-1, 1), 14),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#f7fafc')),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 1, BORDER),
+        ('BOX', (0, 0), (-1, -1), 1.5, HEADER_BG),
     ]))
-    story.append(metrics_table)
-    story.append(Spacer(1, 0.2*inch))
+    story.append(overview_table)
+    story.append(Spacer(1, 5*mm))
     
-    # Secondary Metrics - operational
-    story.append(Paragraph('VUE OPÉRATIONNELLE', h2_style))
+    # === OPERATIONAL VIEW ===
+    story.append(Paragraph('VUE OPÉRATIONNELLE', section_title_style))
+    story.append(Spacer(1, 2*mm))
+    
     op_data = [
-        ['KM Hors Travail', 'Distance Moy./Cycle', 'Rapport Km Trav./Total'],
-        [f"{data['total_km_out']} km", f"{data['avg_trip_distance']} km", f"{round(data['total_km_work']/data['total_km']*100, 1) if data['total_km']>0 else 0}%"]
+        [
+            Paragraph('KM Hors Travail', card_title_style),
+            Paragraph('Distance Moy./Cycle', card_title_style),
+            Paragraph('Rapport Travail', card_title_style)
+        ],
+        [
+            Paragraph(f"<b>{data['total_km_out']}</b>", card_value_style),
+            Paragraph(f"<b>{data['avg_trip_distance']} km</b>", card_value_style),
+            Paragraph(f"<b>{round(data['total_km_work']/data['total_km']*100, 1) if data['total_km']>0 else 0}%</b>", card_value_style)
+        ]
     ]
-    op_table = Table(op_data, colWidths=[2.4*inch, 2.4*inch, 2.4*inch])
+    
+    op_col_width = (landscape(A4)[0] - 30*mm) / 3
+    op_table = Table(op_data, colWidths=[op_col_width] * 3, rowHeights=[8*mm, 12*mm])
     op_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#718096')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#94a3b8')),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.white),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 1, BORDER),
+        ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#94a3b8')),
     ]))
     story.append(op_table)
-    story.append(Spacer(1, 0.2*inch))
+    story.append(Spacer(1, 5*mm))
     
-    # Efficiency & Utilization with colors
-    story.append(Paragraph('PERFORMANCE & EFFICIENCE', h2_style))
+
     
-    kpi_data = [
-        ['Taux d\'Efficacité', 'Taux d\'Utilisation'],
-        [f"{data['efficiency_rate']}%", f"{data['utilization_rate']}%"]
-    ]
+    # === VEHICLE DETAILS TABLE ===
+    story.append(Paragraph('DÉTAILS DES ENGINS', section_title_style))
+    story.append(Spacer(1, 2*mm))
     
-    kpi_table = Table(kpi_data, colWidths=[3.6*inch, 3.6*inch])
-    
-    eff_color = colors.green if data['efficiency_rate'] >= 80 else colors.orange if data['efficiency_rate'] >= 60 else colors.red
-    
-    kpi_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2b6cb0')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 1), (-1, 1), 16),
-        ('TEXTCOLOR', (0, 1), (0, 1), eff_color), # Efficiency Color
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-    ]))
-    story.append(kpi_table)
-    story.append(Spacer(1, 0.3*inch))
-    
-    # Vehicle Details Table
-    story.append(Paragraph('DÉTAILS DES ENGINS', h2_style))
-    
-    # Table Header - User requested order
     table_headers = ['Engin', 'Cycles', 'KM Travaillé', 'Hrs Travaillé', 'KM Hors Travail', "Nbr d'attente", "Durée d'attente"]
     table_data = [table_headers]
     
@@ -1055,30 +1157,50 @@ def generate_atelier_pdf(data):
             v.get('attente_count', 0),
             f"{v.get('duration_attente', 0)} h"
         ])
-        
-    vehicle_table = Table(table_data, colWidths=[2.5*inch, 0.7*inch, 1.0*inch, 1.0*inch, 1.1*inch, 1.0*inch, 1.0*inch])
+    
+    # Adjust column widths for better fit
+    total_width = landscape(A4)[0] - 30*mm
+    vehicle_table = Table(table_data, colWidths=[
+        total_width * 0.22,  # Engin
+        total_width * 0.10,  # Cycles
+        total_width * 0.14,  # KM Travaillé
+        total_width * 0.14,  # Hrs
+        total_width * 0.16,  # KM Hors
+        total_width * 0.12,  # Nb Attente
+        total_width * 0.12   # Durée
+    ])
+    
     vehicle_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'), # Left align names
+        ('ALIGN', (0, 1), (0, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
-        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('TOPPADDING', (0, 1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
+        ('BOX', (0, 0), (-1, -1), 1, HEADER_BG),
     ]))
-    
     story.append(vehicle_table)
+    story.append(Spacer(1, 5*mm))
     
-    story.append(Spacer(1, 0.2*inch))
-    legend_style = ParagraphStyle('Legend', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
-    story.append(Paragraph("* Cycles : Détection Intelligente - Si distance ≥ 70% de la médiane = 1 cycle complet, sinon = 0.5 cycle (arrêt en cours)", legend_style))
-    story.append(Paragraph("** Les engins 'Sur place' ne comptent pas de cycles.", legend_style))
+
     
-    doc.build(story)
+    # Build PDF with custom canvas
+    try:
+        doc.build(story, canvasmaker=NumberedCanvas)
+    except:
+        # Fallback without numbered canvas
+        doc.build(story)
+    
     pdf_buffer.seek(0)
     return pdf_buffer
 
@@ -1105,103 +1227,210 @@ def project_overview(project_id):
 
 def generate_pdf_report_by_date(target_date, records, vehicles_dict):
     """Generate a professional PDF report for a specific date."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    
     pdf_buffer = io.BytesIO()
-    doc = SimpleDocTemplate(pdf_buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    # Use landscape for better table fit
+    doc = SimpleDocTemplate(pdf_buffer, pagesize=landscape(A4), 
+                           topMargin=15*mm, bottomMargin=15*mm,
+                           leftMargin=10*mm, rightMargin=10*mm)
     
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=24,
-        textColor=colors.HexColor('#2c3e50'),
-        spaceAfter=30,
-        alignment=TA_CENTER,
+    
+    # Professional color palette
+    HEADER_BG = colors.HexColor('#0284c7')      # Blue header
+    SECTION_BG = colors.HexColor('#1e40af')     # Dark blue for section
+    LIGHT_BG = colors.HexColor('#f1f5f9')       # Light gray background
+    BORDER = colors.HexColor('#cbd5e1')         # Soft border
+    WARNING_BG = colors.HexColor('#fef08a')     # Light yellow warning
+    WARNING_TEXT = colors.HexColor('#854d0e')   # Dark amber text
+    
+    section_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=11,
+        textColor=SECTION_BG,
+        spaceBefore=8,
+        spaceAfter=4,
         fontName='Helvetica-Bold'
+    )
+    
+    # Cell text style for wrapping long names
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        parent=styles['Normal'],
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT
     )
     
     story = []
     
-    # Title
-    story.append(Paragraph('📊 RAPPORT D\'ACTIVITÉ QUOTIDIEN', title_style))
-    story.append(Spacer(1, 0.2*inch))
+    # Professional Header Bar
+    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN']]
+    header_table = Table(header_data, colWidths=[landscape(A4)[0] - 20*mm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 16),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 3*mm))
     
-    # Date info
-    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER)
-    # Format date in French
+    # Date info bar
     date_str = target_date.strftime('%d %B %Y').replace('January', 'Janvier').replace('February', 'Février').replace('March', 'Mars').replace('April', 'Avril').replace('May', 'Mai').replace('June', 'Juin').replace('July', 'Juillet').replace('August', 'Août').replace('September', 'Septembre').replace('October', 'Octobre').replace('November', 'Novembre').replace('December', 'Décembre')
-    story.append(Paragraph(f'<b>Date du Rapport:</b> {date_str}', info_style))
-    story.append(Spacer(1, 0.3*inch))
+    info_data = [[f'Date: {date_str}', f'Nombre de véhicules: {len(records)}']]
+    info_table = Table(info_data, colWidths=[(landscape(A4)[0] - 20*mm) / 2] * 2)
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 5*mm))
     
     # Group by category
     categories_dict = {}
     for record in records:
         vehicle = record.vehicle_code
         vehicle_obj = vehicles_dict.get(vehicle)
-        category = vehicle_obj.category if vehicle_obj else 'Unknown'
+        category = vehicle_obj.category if vehicle_obj else 'Autres'
         
         if category not in categories_dict:
             categories_dict[category] = []
         categories_dict[category].append(record)
     
+    # Calculate column widths for landscape A4 (842 points wide - margins)
+    total_width = landscape(A4)[0] - 20*mm
+    col_widths = [
+        total_width * 0.08,   # ID (short)
+        total_width * 0.25,   # Nom (needs space for long names)
+        total_width * 0.15,   # Matricule
+        total_width * 0.13,   # Avant KM
+        total_width * 0.13,   # Avant Heures
+        total_width * 0.13,   # Après KM
+        total_width * 0.13,   # Après Heures
+    ]
+    
     # Create tables for each category
     for category in sorted(categories_dict.keys()):
-        story.append(Paragraph(f'<b>{category}</b>', styles['Heading2']))
+        # Section header
+        story.append(Paragraph(f'<b>{category}</b>', section_style))
         
-        # Table data with formatted cells
-        table_data = [['ID Véhicule', 'Nom du Véhicule', 'Matricule', 'Avant 18:30\n(Heures)', 'Après 18:30\n(Heures)', 'Avant 18:30\n(KM)', 'Après 18:30\n(KM)']]
+        # Table headers - cleaner format
+        table_data = [[
+            'ID',
+            'Véhicule / Conducteur',
+            'Matricule',
+            'Avant 18:30\n(KM)',
+            'Avant 18:30\n(Heures)',
+            'Après 18:30\n(KM)',
+            'Après 18:30\n(Heures)'
+        ]]
+        
+        highlight_rows = []      # For >20km (yellow + bold)
+        attention_rows = []      # For any movement after hours (just bold)
+        row_idx = 1
         
         for record in categories_dict[category]:
             vehicle_obj = vehicles_dict.get(record.vehicle_code)
             vehicle_name = vehicle_obj.name if vehicle_obj else '-'
-            matricule = f'<font size="8">{vehicle_obj.matricule if vehicle_obj else "-"}</font>'
+            matricule = vehicle_obj.matricule if vehicle_obj else '-'
             
+            # Check if after-hours KM exceeds 20 (yellow highlight)
+            if record.km_after > 20:
+                highlight_rows.append(row_idx)
+            # Check if ANY movement after hours (bold only)
+            elif record.km_after > 0:
+                attention_rows.append(row_idx)
+            
+            # Use Paragraph for long text to enable wrapping
             table_data.append([
                 record.vehicle_code,
-                vehicle_name,
-                Paragraph(matricule, styles['Normal']),
-                format_decimal_hours(record.hours_before_20h),
-                format_decimal_hours(record.hours_after_20h),
+                Paragraph(vehicle_name, cell_style),
+                matricule,
                 f"{record.km_before:.2f}",
-                f"{record.km_after:.2f}"
+                format_decimal_hours(record.hours_before_20h),
+                f"{record.km_after:.2f}",
+                format_decimal_hours(record.hours_after_20h)
             ])
+            row_idx += 1
         
         # Add totals row
-        total_hours_before = sum(r.hours_before_20h for r in categories_dict[category])
-        total_hours_after = sum(r.hours_after_20h for r in categories_dict[category])
         total_km_before = sum(r.km_before for r in categories_dict[category])
+        total_hours_before = sum(r.hours_before_20h for r in categories_dict[category])
         total_km_after = sum(r.km_after for r in categories_dict[category])
+        total_hours_after = sum(r.hours_after_20h for r in categories_dict[category])
         
         table_data.append([
-            'TOTAL',
-            '', '',
-            format_decimal_hours(total_hours_before),
-            format_decimal_hours(total_hours_after),
+            'TOTAL', '', '',
             f"{total_km_before:.2f}",
-            f"{total_km_after:.2f}"
+            format_decimal_hours(total_hours_before),
+            f"{total_km_after:.2f}",
+            format_decimal_hours(total_hours_after)
         ])
         
-        # Style table with proper column widths
-        table = Table(table_data, colWidths=[0.9*inch, 2.2*inch, 1.1*inch, 0.95*inch, 0.95*inch, 0.95*inch, 0.95*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Create and style table
+        table = Table(table_data, colWidths=col_widths)
+        
+        table_styles = [
+            # Header row
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#E7E6E6')),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Data rows
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),   # ID centered
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),     # Name left
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),   # Matricule centered
+            ('ALIGN', (3, 1), (-1, -1), 'CENTER'),  # Numbers centered
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            
+            # Totals row
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d1d5db')),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F2F2F2')]),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6)
-        ]))
+            
+            # Grid and alternating rows
+            ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, LIGHT_BG]),
+            
+            # Padding
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ]
+        
+        # Add bold for rows with ANY movement after hours (attention)
+        for row in attention_rows:
+            table_styles.append(('FONTNAME', (0, row), (-1, row), 'Helvetica-Bold'))
+        
+        # Add warning highlighting for >20km after hours (yellow + bold)
+        for row in highlight_rows:
+            table_styles.append(('BACKGROUND', (0, row), (-1, row), WARNING_BG))
+            table_styles.append(('TEXTCOLOR', (0, row), (-1, row), WARNING_TEXT))
+            table_styles.append(('FONTNAME', (0, row), (-1, row), 'Helvetica-Bold'))
+        
+        table.setStyle(TableStyle(table_styles))
         
         story.append(table)
-        story.append(Spacer(1, 0.3*inch))
+        story.append(Spacer(1, 4*mm))
+    
+    # Footer note
+    note_style = ParagraphStyle('Note', parent=styles['Normal'], fontSize=7, textColor=colors.HexColor('#64748b'))
+    story.append(Paragraph('* Lignes jaunes = véhicules avec plus de 20 km après 18:30', note_style))
     
     doc.build(story)
     pdf_buffer.seek(0)
