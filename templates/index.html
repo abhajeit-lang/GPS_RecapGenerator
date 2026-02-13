@@ -348,7 +348,7 @@
             <div id="sub-projects" class="hierarchy-content active" style="display: block;">
                 <div
                     style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #dee2e6;">
-                    <h4 style="margin-bottom: 10px;">Nouveau Projet</h4>
+                    <h4 id="projectFormTitle" style="margin-bottom: 10px;">Nouveau Projet</h4>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
                         <input type="text" id="newProjectName" placeholder="Désignation (Nom)" required>
                         <input type="text" id="newProjectProvince" placeholder="Province">
@@ -356,8 +356,13 @@
                     <div style="margin-bottom: 10px;">
                         <input type="text" id="newProjectDesc" placeholder="Description" style="width: 100%;">
                     </div>
-                    <button onclick="createProject()" style="width: auto; margin-top: 0; padding: 8px 16px;">Créer
-                        Projet</button>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btnSaveProject" onclick="createProject()"
+                            style="width: auto; margin-top: 0; padding: 8px 16px;">Créer
+                            Projet</button>
+                        <button id="btnCancelProject" onclick="cancelProjectEdit()"
+                            style="width: auto; margin-top: 0; padding: 8px 16px; background: #6c757d; display: none;">Annuler</button>
+                    </div>
                 </div>
 
                 <h4 style="margin-bottom: 10px;">Liste des Projets</h4>
@@ -393,6 +398,12 @@
                 </div>
 
                 <h4 style="margin-bottom: 10px;">Liste des Ateliers</h4>
+                <div style="margin-bottom: 10px;">
+                    <select id="filterAteliersByProject" onchange="renderAteliersList()"
+                        style="width: 100%; padding: 8px;">
+                        <option value="all">Tous les Projets</option>
+                    </select>
+                </div>
                 <div id="ateliersList" style="max-height: 400px; overflow-y: auto;">
                     <!-- Populated by JS -->
                 </div>
@@ -686,6 +697,8 @@
                 });
         }
 
+        let editingProjectId = null;
+
         function createProject() {
             const name = document.getElementById('newProjectName').value.trim();
             const province = document.getElementById('newProjectProvince').value.trim();
@@ -693,8 +706,11 @@
 
             if (!name) return alert('Désignation (Nom) requise');
 
-            fetch('/projects', {
-                method: 'POST',
+            const url = editingProjectId ? `/projects/${editingProjectId}` : '/projects';
+            const method = editingProjectId ? 'PUT' : 'POST';
+
+            fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name,
@@ -704,12 +720,36 @@
             }).then(r => r.json()).then(data => {
                 if (data.error) alert(data.error);
                 else {
-                    document.getElementById('newProjectName').value = '';
-                    document.getElementById('newProjectProvince').value = '';
-                    document.getElementById('newProjectDesc').value = '';
+                    cancelProjectEdit();
                     loadHierarchy();
                 }
             });
+        }
+
+        function editProject(id, name, province, description) {
+            editingProjectId = id;
+            document.getElementById('newProjectName').value = name;
+            document.getElementById('newProjectProvince').value = province || '';
+            document.getElementById('newProjectDesc').value = description || '';
+
+            document.getElementById('projectFormTitle').textContent = 'Modifier le Projet';
+            document.getElementById('btnSaveProject').textContent = 'Modifier Projet';
+            document.getElementById('btnSaveProject').style.background = '#ffc107';
+            document.getElementById('btnSaveProject').style.color = '#000';
+            document.getElementById('btnCancelProject').style.display = 'inline-block';
+        }
+
+        function cancelProjectEdit() {
+            editingProjectId = null;
+            document.getElementById('newProjectName').value = '';
+            document.getElementById('newProjectProvince').value = '';
+            document.getElementById('newProjectDesc').value = '';
+
+            document.getElementById('projectFormTitle').textContent = 'Nouveau Projet';
+            document.getElementById('btnSaveProject').textContent = 'Créer Projet';
+            document.getElementById('btnSaveProject').style.background = '#667eea';
+            document.getElementById('btnSaveProject').style.color = 'white';
+            document.getElementById('btnCancelProject').style.display = 'none';
         }
 
         let editingAtelierId = null;
@@ -779,6 +819,9 @@
             }
             let html = '';
             hierarchyData.projects.forEach(p => {
+                const escapedName = p.name.replace(/'/g, "\\'");
+                const escapedProvince = (p.province || '').replace(/'/g, "\\'");
+                const escapedDesc = (p.description || '').replace(/'/g, "\\'");
                 html += `<div style="background: white; border: 1px solid #ddd; padding: 10px; margin-bottom: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="flex: 1;">
                         <div style="font-weight: bold; color: #333;">📁 ${p.name}</div>
@@ -786,10 +829,16 @@
                             Province: ${p.province || '-'} | ${p.description || ''}
                         </div>
                     </div>
-                    <button onclick="deleteProject(${p.id})" title="Supprimer ce projet" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 14px; width: 28px; height: 28px; min-width: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
-                        onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
-                        🗑️
-                    </button>
+                    <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                        <button onclick="editProject(${p.id}, '${escapedName}', '${escapedProvince}', '${escapedDesc}')" title="Modifier" style="background: #ffc107; color: black; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 13px; width: 28px; height: 28px; min-width: 28px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                            onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+                            ✏️
+                        </button>
+                        <button onclick="deleteProject(${p.id})" title="Supprimer ce projet" style="background: #dc3545; color: white; border: none; padding: 0; border-radius: 4px; cursor: pointer; font-size: 14px; width: 28px; height: 28px; min-width: 28px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;"
+                            onmouseover="this.style.background='#c82333'; this.style.transform='scale(1.1)'" onmouseout="this.style.background='#dc3545'; this.style.transform='scale(1)'">
+                            🗑️
+                        </button>
+                    </div>
                 </div>`;
             });
             list.innerHTML = html;
@@ -797,12 +846,32 @@
 
         function renderAteliersList() {
             const list = document.getElementById('ateliersList');
+            const filterSelect = document.getElementById('filterAteliersByProject');
+
             if (!hierarchyData || !hierarchyData.projects.length) {
                 list.innerHTML = '<p class="text-muted">Aucun atelier.</p>';
                 return;
             }
-            let html = '';
+
+            // Update the filter dropdown (keep current selection)
+            const currentFilter = filterSelect.value;
+            filterSelect.innerHTML = '<option value="all">Tous les Projets</option>';
             hierarchyData.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                filterSelect.appendChild(opt);
+            });
+            filterSelect.value = currentFilter;
+
+            // Filter projects based on selection
+            const selectedProjectId = filterSelect.value;
+            const projectsToShow = selectedProjectId === 'all'
+                ? hierarchyData.projects
+                : hierarchyData.projects.filter(p => String(p.id) === selectedProjectId);
+
+            let html = '';
+            projectsToShow.forEach(p => {
                 if (p.ateliers.length > 0) {
                     html += `<div style="margin-bottom: 15px;">
                         <h5 style="color: #667eea; border-bottom: 1px solid #eee; padding-bottom: 5px;">${p.name}</h5>`;
@@ -827,7 +896,7 @@
                     html += `</div>`;
                 }
             });
-            if (html === '') html = '<p class="text-muted">Aucun atelier créé.</p>';
+            if (html === '') html = '<p class="text-muted">Aucun atelier pour ce projet.</p>';
             list.innerHTML = html;
         }
 

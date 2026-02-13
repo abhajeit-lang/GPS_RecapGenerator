@@ -778,6 +778,33 @@ def delete_project(project_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
+@app.route('/projects/<int:project_id>', methods=['PUT'])
+def update_project(project_id):
+    try:
+        project = Project.query.get(project_id)
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        data = request.json
+        name = data.get('name')
+        description = data.get('description')
+        province = data.get('province')
+        
+        if name:
+            project.name = name
+        if description is not None:
+            project.description = description
+        if province is not None:
+            project.province = province
+        
+        db.session.commit()
+        return jsonify(project.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        if 'UNIQUE constraint failed' in str(e):
+            return jsonify({'error': f'Un projet nommé "{name}" existe déjà.'}), 400
+        return jsonify({'error': str(e)}), 400
+
 @app.route('/ateliers/<int:atelier_id>', methods=['PUT'])
 def update_atelier(atelier_id):
     try:
