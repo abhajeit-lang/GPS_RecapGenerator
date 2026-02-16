@@ -201,3 +201,182 @@ def generate_project_overview(project_id, start_date, end_date):
         'ateliers': ateliers_data,
         'date_range': f"{start_date} to {end_date}"
     }
+
+
+def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
+    """
+    Generate daily activity report for specific project/atelier.
+    Shows vehicles with movement before/after 18:30 similar to daily activity report.
+    """
+    project = Project.query.get(project_id)
+    atelier = Atelier.query.get(atelier_id)
+    
+    if not project or not atelier:
+        return None
+    
+    # Verify atelier belongs to project
+    if atelier.project_id != project_id:
+        return None
+    
+    # Get vehicles in this atelier
+    vehicles = Vehicle.query.filter_by(atelier_id=atelier_id).all()
+    
+    if not vehicles:
+        return None
+    
+    vehicle_ids = [v.id for v in vehicles]
+    
+    # Query activities for this specific date
+    activities = VehicleActivity.query.filter(
+        VehicleActivity.vehicle_code.in_(vehicle_ids),
+        VehicleActivity.date == target_date
+    ).all()
+    
+    # Build vehicle details with before/after data
+    vehicle_data = []
+    total_km_before = 0
+    total_km_after = 0
+    total_cycles = 0
+    
+    for v in vehicles:
+        v_activity = next((a for a in activities if a.vehicle_code == v.id), None)
+        
+        if v_activity:
+            km_before = v_activity.km_before
+            km_after = v_activity.km_after
+            cycles = v_activity.trip_count
+            
+            vehicle_data.append({
+                'id': v.id,
+                'name': v.name,
+                'matricule': v.matricule,
+                'km_before': round(km_before, 2),
+                'km_after': round(km_after, 2),
+                'total_km': round(km_before + km_after, 2),
+                'cycles': round(cycles, 1)
+            })
+            
+            total_km_before += km_before
+            total_km_after += km_after
+            total_cycles += cycles
+    
+    # Sort by total km descending
+    vehicle_data.sort(key=lambda x: x['total_km'], reverse=True)
+    
+    return {
+        'project_id': project_id,
+        'project_name': project.name,
+        'province': project.province or 'N/A',
+        'atelier_id': atelier_id,
+        'atelier_name': atelier.name,
+        'date': target_date,
+        'vehicles': vehicle_data,
+        'total_km_before': round(total_km_before, 2),
+        'total_km_after': round(total_km_after, 2),
+        'total_km': round(total_km_before + total_km_after, 2),
+        'total_cycles': round(total_cycles, 1),
+        'vehicle_count': len(vehicles),
+        'active_vehicle_count': len(vehicle_data)
+    }
+
+
+def generate_global_daily_report(target_date):
+    """
+    Generate daily activity report for ALL projects and ALL ateliers.
+    Groups results by Project -> Atelier.
+    """
+    projects = Project.query.all()
+    
+    global_data = {
+        'date': target_date,
+        'projects': [],
+        'total_km_before': 0,
+        'total_km_after': 0,
+        'total_km': 0,
+        'total_cycles': 0,
+        'total_active_vehicles': 0
+    }
+    
+    for project in projects:
+        project_data = {
+            'project_id': project.id,
+            'project_name': project.name,
+            'province': project.province or 'N/A',
+            'ateliers': []
+        }
+        
+        for atelier in project.ateliers:
+            vehicles = Vehicle.query.filter_by(atelier_id=atelier.id).all()
+            if not vehicles:
+                continue
+                
+            vehicle_ids = [v.id for v in vehicles]
+            activities = VehicleActivity.query.filter(
+                VehicleActivity.vehicle_code.in_(vehicle_ids),
+                VehicleActivity.date == target_date
+            ).all()
+            
+            if not activities:
+                continue
+                
+            atelier_data = {
+                'atelier_name': atelier.name,
+                'vehicles': [],
+                'km_before': 0,
+                'km_after': 0,
+                'total_km': 0,
+                'cycles': 0
+            }
+            
+            for v in vehicles:
+                v_activity = next((a for a in activities if a.vehicle_code == v.id), None)
+                if v_activity:
+                    km_b = v_activity.km_before
+                    km_a = v_activity.km_after
+                    cyc = v_activity.trip_count
+                    
+                    atelier_data['vehicles'].append({
+                        'id': v.id,
+                        'name': v.name,
+                        'matricule': v.matricule,
+                        'km_before': round(km_b, 2),
+                        'km_after': round(km_a, 2),
+                        'total_km': round(km_b + km_a, 2),
+                        'cycles': round(cyc, 1)
+                    })
+                    
+                    atelier_data['km_before'] += km_b
+                    atelier_data['km_after'] += km_a
+                    atelier_data['total_km'] += (km_b + km_a)
+                    atelier_data['cycles'] += cyc
+                    
+            if atelier_data['vehicles']:
+                # Sort vehicles by km
+                atelier_data['vehicles'].sort(key=lambda x: x['total_km'], reverse=True)
+                
+                # Round atelier totals
+                atelier_data['km_before'] = round(atelier_data['km_before'], 2)
+                atelier_data['km_after'] = round(atelier_data['km_after'], 2)
+                atelier_data['total_km'] = round(atelier_data['total_km'], 2)
+                atelier_data['cycles'] = round(atelier_data['cycles'], 1)
+                
+                project_data['ateliers'].append(atelier_data)
+                
+                # Update global totals
+                global_data['total_km_before'] += atelier_data['km_before']
+                global_data['total_km_after'] += atelier_data['km_after']
+                global_data['total_km'] += atelier_data['total_km']
+                global_data['total_cycles'] += atelier_data['cycles']
+                global_data['total_active_vehicles'] += len(atelier_data['vehicles'])
+                
+        if project_data['ateliers']:
+            global_data['projects'].append(project_data)
+            
+    # Round global totals
+    global_data['total_km_before'] = round(global_data['total_km_before'], 2)
+    global_data['total_km_after'] = round(global_data['total_km_after'], 2)
+    global_data['total_km'] = round(global_data['total_km'], 2)
+    global_data['total_cycles'] = round(global_data['total_cycles'], 1)
+    
+    return global_data
+

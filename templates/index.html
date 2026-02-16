@@ -570,11 +570,49 @@
                 </div>
             </div>
 
-            <!-- 3. PROJECT OVERVIEW (Placeholder) -->
+            <!-- 3. PROJECT OVERVIEW -->
             <div id="report-project-overview" class="report-content" style="display: none;">
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center;">
-                    <p style="font-size: 18px; color: #667eea;">🚧 Vue d'Ensemble Projet - En Développement</p>
-                    <p style="color: #666;">Sélectionnez un projet pour voir le résumé de tous ses ateliers</p>
+                <div
+                    style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+                    <h4 style="margin-bottom: 15px;">Rapport d'Activité Quotidien - Par Projet & Atelier</h4>
+
+                    <!-- Project Selection -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Sélectionner un
+                            Projet:</label>
+                        <select id="vue_projet_project_select" onchange="updateProjectAteliersDropdown()"
+                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">-- Choisir un projet --</option>
+                        </select>
+                    </div>
+
+                    <!-- Atelier Selection -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Sélectionner un
+                            Atelier:</label>
+                        <select id="vue_projet_atelier_select"
+                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="">-- Choisir un atelier --</option>
+                        </select>
+                    </div>
+
+                    <!-- Date Selection -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Sélectionner une
+                            Date:</label>
+                        <input type="date" id="vue_projet_date_select"
+                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+
+                    <button onclick="generateProjectAtelierDailyPDF()"
+                        style="background: #0284c7; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">
+                        📄 Télécharger le Rapport PDF
+                    </button>
+
+                    <button onclick="generateGlobalDailyPDF()"
+                        style="background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; margin-left: 10px;">
+                        🌍 Rapport Global (Tous Projets)
+                    </button>
                 </div>
             </div>
 
@@ -1856,10 +1894,137 @@
             if (tabName === 'advanced-reports') {
                 loadAteliersForComparative();
                 loadAteliersForPerformance();
+                loadProjectsForVueProjet(); // Load projects for Vue Projet
             } else if (tabName === 'upload') {
                 loadUploadedFiles();
             }
         };
+
+        // PROJECT/ATELIER DAILY REPORT FUNCTIONS
+        let vueProjetHierarchy = null;
+
+        function loadProjectsForVueProjet() {
+            fetch('/hierarchy')
+                .then(response => response.json())
+                .then(data => {
+                    vueProjetHierarchy = data;
+                    const select = document.getElementById('vue_projet_project_select');
+                    select.innerHTML = '<option value="">-- Choisir un projet --</option>';
+                    data.forEach(project => {
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = `${project.name} (${project.province || 'N/A'})`;
+                        option.dataset.province = project.province || 'N/A';
+                        select.appendChild(option);
+                    });
+                })
+                .catch(err => console.error('Error loading projects:', err));
+        }
+
+        function updateProjectAteliersDropdown() {
+            const projectSelect = document.getElementById('vue_projet_project_select');
+            const atelierSelect = document.getElementById('vue_projet_atelier_select');
+            const projectId = parseInt(projectSelect.value);
+
+            atelierSelect.innerHTML = '<option value="">-- Choisir un atelier --</option>';
+
+            if (!projectId || !vueProjetHierarchy) return;
+
+            const project = vueProjetHierarchy.find(p => p.id === projectId);
+            if (project && project.ateliers) {
+                project.ateliers.forEach(atelier => {
+                    const option = document.createElement('option');
+                    option.value = atelier.id;
+                    option.textContent = atelier.name;
+                    atelierSelect.appendChild(option);
+                });
+            }
+        }
+
+        function generateProjectAtelierDailyPDF() {
+            const projectId = document.getElementById('vue_projet_project_select').value;
+            const atelierId = document.getElementById('vue_projet_atelier_select').value;
+            const date = document.getElementById('vue_projet_date_select').value;
+
+            if (!projectId || !atelierId || !date) {
+                alert('Veuillez sélectionner un projet, un atelier et une date.');
+                return;
+            }
+
+            fetch('/reports/project-atelier-daily/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: parseInt(projectId),
+                    atelier_id: parseInt(atelierId),
+                    date: date
+                })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    return response.json().then(err => { throw new Error(err.error || 'Erreur inconnue') });
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Rapport_Quotidien_${date}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    alert('✓ Rapport téléchargé avec succès!');
+                })
+                .catch(err => {
+                    alert(`Erreur: ${err.message}`);
+                });
+        }
+
+        function generateGlobalDailyPDF() {
+            const date = document.getElementById('vue_projet_date_select').value;
+
+            if (!date) {
+                alert('Veuillez sélectionner une date.');
+                return;
+            }
+
+            if (!confirm('Voulez-vous générer le rapport global pour TOUS les projets? Cela peut prendre quelques secondes.')) {
+                return;
+            }
+
+            fetch('/reports/global-daily/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: date
+                })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    return response.json().then(err => { throw new Error(err.error || 'Erreur inconnue') });
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Rapport_Global_Tous_Projets_${date}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    alert('✓ Rapport global téléchargé avec succès!');
+                })
+                .catch(err => {
+                    alert(`Erreur: ${err.message}`);
+                });
+        }
+
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {

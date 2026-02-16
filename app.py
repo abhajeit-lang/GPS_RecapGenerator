@@ -7,7 +7,7 @@ from models import db, VehicleActivity, Vehicle, Project, Atelier
 import tempfile
 from datetime import datetime
 import pandas as pd
-from advanced_reports import generate_comparative_report, generate_atelier_performance_report, generate_project_overview
+from advanced_reports import generate_comparative_report, generate_atelier_performance_report, generate_project_overview, generate_project_atelier_daily_report, generate_global_daily_report
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -941,6 +941,61 @@ def atelier_performance_pdf(atelier_id):
         return jsonify({'error': str(e)}), 400
 
 
+@app.route('/reports/project-atelier-daily/pdf', methods=['POST'])
+def project_atelier_daily_pdf():
+    """Generate daily activity report PDF for specific project/atelier."""
+    try:
+        data = request.json
+        project_id = int(data.get('project_id'))
+        atelier_id = int(data.get('atelier_id'))
+        target_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
+        
+        result = generate_project_atelier_daily_report(project_id, atelier_id, target_date)
+        
+        if not result:
+            return jsonify({'error': 'No data found for this project/atelier'}), 404
+        
+        pdf_buffer = generate_project_atelier_daily_pdf(result)
+        
+        # Filename format: ProjectID_Province_AtelierName_Date.pdf
+        province_clean = result['province'].replace(' ', '_')
+        atelier_clean = result['atelier_name'].replace(' ', '_')
+        filename = f"{result['project_id']}_{province_clean}_{atelier_clean}_{target_date}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/reports/global-daily/pdf', methods=['POST'])
+def global_daily_pdf():
+    """Generate daily activity report PDF for ALL projects."""
+    try:
+        data = request.json
+        target_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
+        
+        result = generate_global_daily_report(target_date)
+        
+        if not result['projects']:
+            return jsonify({'error': 'Aucune donnée trouvée pour cette date'}), 404
+        
+        pdf_buffer = generate_global_daily_pdf(result)
+        
+        filename = f"Rapport_Global_Tous_Projets_{target_date}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 def generate_atelier_pdf(data):
     """Generate professional PDF for atelier performance."""
     from reportlab.lib.pagesizes import A4, landscape
@@ -1729,6 +1784,403 @@ def download_vehicle_list_pdf():
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+
+def generate_project_atelier_daily_pdf(data):
+    """Generate professional daily activity PDF for project/atelier."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import KeepTogether
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from datetime import datetime
+    
+    pdf_buffer = io.BytesIO()
+    
+    # Custom canvas for footer
+    class NumberedCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self.pages = []
+            
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
+            
+        def save(self):
+            page_count = len(self.pages)
+            for page_num, page in enumerate(self.pages, 1):
+                self.__dict__.update(page)
+                self.draw_page_elements(page_num, page_count)
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
+            
+        def draw_page_elements(self, page_num, page_count):
+            self.setFont("Helvetica", 8)
+            self.setFillColor(colors.HexColor('#64748b'))
+            self.drawRightString(landscape(A4)[0] - 20*mm, 15*mm, f"Page {page_num}/{page_count}")
+            self.drawString(20*mm, 15*mm, f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+    
+    doc = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=landscape(A4),
+        topMargin=15*mm,
+        bottomMargin=20*mm,
+        leftMargin=15*mm,
+        rightMargin=15*mm
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    # Colors
+    HEADER_BG = colors.HexColor('#0284c7')
+    BORDER = colors.HexColor('#cbd5e1')
+    
+    # Styles
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.white,
+        spaceAfter=0,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#334155'),
+        fontName='Helvetica',
+        alignment=TA_LEFT,
+        spaceBefore=3,
+        spaceAfter=3
+    )
+    
+    table_header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.white,
+        fontName='Helvetica-Bold'
+    )
+    
+    story = []
+    
+    # Header
+    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN PAR ATELIER']]
+    header_table = Table(header_data, colWidths=[landscape(A4)[0] - 30*mm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 18),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 8*mm))
+    
+    # Info section
+    date_str = data['date'].strftime('%d/%m/%Y')
+    info_text = f"""
+    <b>Projet:</b> {data['project_name']} - {data['province']}<br/>
+    <b>Atelier:</b> {data['atelier_name']}<br/>
+    <b>Date:</b> {date_str}
+    """
+    story.append(Paragraph(info_text, subtitle_style))
+    story.append(Spacer(1, 5*mm))
+    
+    # Summary
+    summary_data = [[
+        Paragraph(f"<b>{data['active_vehicle_count']}/{data['vehicle_count']}</b> Engins Actifs", subtitle_style),
+        Paragraph(f"<b>{data['total_cycles']}</b> Cycles", subtitle_style),
+        Paragraph(f"<b>{data['total_km']} km</b> Total", subtitle_style)
+    ]]
+    summary_table = Table(summary_data, colWidths=[(landscape(A4)[0] - 30*mm) / 3] * 3)
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f1f5f9')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('BOX', (0, 0), (-1, -1), 1, BORDER),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 7*mm))
+    
+    # Vehicle table
+    if data['vehicles']:
+        table_data = [[
+            Paragraph('<b>Véhicule</b>', table_header_style),
+            Paragraph('<b>Matricule</b>', table_header_style),
+            Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
+            Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
+            Paragraph('<b>Total KM</b>', table_header_style),
+            Paragraph('<b>Cycles</b>', table_header_style)
+        ]]
+        
+        for v in data['vehicles']:
+            table_data.append([
+                v['id'],
+                v.get('matricule', '-'),
+                f"{v['km_before']}",
+                f"{v['km_after']}",
+                f"{v['total_km']}",
+                f"{v['cycles']}"
+            ])
+        
+        # Add totals row
+        table_data.append([
+            Paragraph('<b>TOTAL</b>', table_header_style),
+            '',
+            Paragraph(f"<b>{data['total_km_before']}</b>", table_header_style),
+            Paragraph(f"<b>{data['total_km_after']}</b>", table_header_style),
+            Paragraph(f"<b>{data['total_km']}</b>", table_header_style),
+            Paragraph(f"<b>{data['total_cycles']}</b>", table_header_style)
+        ])
+        
+        col_widths = [60*mm, 50*mm, 45*mm, 45*mm, 35*mm, 30*mm]
+        vehicle_table = Table(table_data, colWidths=col_widths)
+        vehicle_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+            ('BOX', (0, 0), (-1, -1), 1.5, HEADER_BG),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e2e8f0')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        story.append(vehicle_table)
+    else:
+        story.append(Paragraph("Aucune activité enregistrée pour cette date.", subtitle_style))
+    
+    doc.build(story, canvasmaker=NumberedCanvas)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+
+def generate_global_daily_pdf(data):
+    """Generate professional daily activity PDF for ALL projects and ateliers."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import KeepTogether
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from datetime import datetime
+    
+    pdf_buffer = io.BytesIO()
+    
+    # Custom canvas for footer (Reused from project report)
+    class NumberedCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self.pages = []
+            
+        def showPage(self):
+            self.pages.append(dict(self.__dict__))
+            self._startPage()
+            
+        def save(self):
+            page_count = len(self.pages)
+            for page_num, page in enumerate(self.pages, 1):
+                self.__dict__.update(page)
+                self.draw_page_elements(page_num, page_count)
+                canvas.Canvas.showPage(self)
+            canvas.Canvas.save(self)
+            
+        def draw_page_elements(self, page_num, page_count):
+            self.setFont("Helvetica", 8)
+            self.setFillColor(colors.HexColor('#64748b'))
+            self.drawRightString(landscape(A4)[0] - 20*mm, 15*mm, f"Page {page_num}/{page_count}")
+            self.drawString(20*mm, 15*mm, f"Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}")
+    
+    doc = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=landscape(A4),
+        topMargin=15*mm,
+        bottomMargin=20*mm,
+        leftMargin=15*mm,
+        rightMargin=15*mm
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    # Colors
+    HEADER_BG = colors.HexColor('#1e293b') # Darker for global
+    PROJECT_HEADER_BG = colors.HexColor('#0284c7') # Blue for project sections
+    ATELIER_SUBHEADER_BG = colors.HexColor('#f8f9fa')
+    BORDER = colors.HexColor('#cbd5e1')
+    
+    # Styles
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontSize=20,
+        textColor=colors.white,
+        spaceAfter=0,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER
+    )
+    
+    section_title_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.white,
+        fontName='Helvetica-Bold',
+        alignment=TA_LEFT,
+        leftIndent=5*mm
+    )
+    
+    atelier_title_style = ParagraphStyle(
+        'AtelierTitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#0369a1'),
+        fontName='Helvetica-Bold',
+        spaceBefore=10,
+        spaceAfter=5
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#334155'),
+        fontName='Helvetica',
+        alignment=TA_LEFT,
+        spaceBefore=3,
+        spaceAfter=3
+    )
+    
+    table_header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.white,
+        fontName='Helvetica-Bold'
+    )
+    
+    story = []
+    
+    # Global Header
+    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN - TOUS LES PROJETS']]
+    header_table = Table(header_data, colWidths=[landscape(A4)[0] - 30*mm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 20),
+        ('TOPPADDING', (0, 0), (-1, -1), 15),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 10*mm))
+    
+    # Global Summary Box
+    date_str = data['date'].strftime('%d/%m/%Y')
+    summary_data = [
+        [Paragraph(f"<b>Date:</b> {date_str}", subtitle_style), '', ''],
+        [
+            Paragraph(f"<b>{data['total_active_vehicles']}</b> Engins Actifs", subtitle_style),
+            Paragraph(f"<b>{data['total_cycles']}</b> Cycles Totaux", subtitle_style),
+            Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
+        ]
+    ]
+    summary_table = Table(summary_data, colWidths=[(landscape(A4)[0] - 30*mm) / 3] * 3)
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+        ('SPAN', (0, 0), (2, 0)),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 1.5, HEADER_BG),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 15*mm))
+    
+    # Loop through Projects
+    for project in data['projects']:
+        # Project Title Bar
+        p_header = [[Paragraph(f"PROJET: {project['project_name']} ({project['province']})", section_title_style)]]
+        p_table = Table(p_header, colWidths=[landscape(A4)[0] - 30*mm])
+        p_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), PROJECT_HEADER_BG),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(KeepTogether(p_table))
+        
+        # Loop through Ateliers in Project
+        for atelier in project['ateliers']:
+            # Atelier name
+            story.append(Paragraph(f"Atelier: {atelier['atelier_name']}", atelier_title_style))
+            
+            # Vehicle table for this atelier
+            if atelier['vehicles']:
+                table_data = [[
+                    Paragraph('<b>Véhicule</b>', table_header_style),
+                    Paragraph('<b>Matricule</b>', table_header_style),
+                    Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
+                    Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
+                    Paragraph('<b>Total KM</b>', table_header_style),
+                    Paragraph('<b>Cycles</b>', table_header_style)
+                ]]
+                
+                for v in atelier['vehicles']:
+                    table_data.append([
+                        v['id'],
+                        v.get('matricule', '-'),
+                        f"{v['km_before']}",
+                        f"{v['km_after']}",
+                        f"{v['total_km']}",
+                        f"{v['cycles']}"
+                    ])
+                
+                # Atelier Totals Row
+                table_data.append([
+                    Paragraph('<b>TOTAL ATELIER</b>', table_header_style),
+                    '',
+                    Paragraph(f"<b>{atelier['km_before']}</b>", table_header_style),
+                    Paragraph(f"<b>{atelier['km_after']}</b>", table_header_style),
+                    Paragraph(f"<b>{atelier['total_km']}</b>", table_header_style),
+                    Paragraph(f"<b>{atelier['cycles']}</b>", table_header_style)
+                ])
+                
+                col_widths = [60*mm, 50*mm, 45*mm, 45*mm, 35*mm, 30*mm]
+                v_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                v_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
+                    ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                ]))
+                story.append(v_table)
+                story.append(Spacer(1, 5*mm))
+        
+        story.append(Spacer(1, 10*mm)) # Gap between projects
+    
+    doc.build(story, canvasmaker=NumberedCanvas)
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
 
 @app.route('/files')
 def list_files():
