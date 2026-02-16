@@ -84,6 +84,21 @@ def get_date_range_data(atelier_id, start_date, end_date):
     efficiency_rate = round((total_working_time / total_time * 100) if total_time > 0 else 0, 1)
     utilization_rate = round((total_course / total_working_time * 100) if total_working_time > 0 else 0, 1)
     
+    # Find best producer (max cycles) and lowest activity (min cycles > 0)
+    best_producer = "N/A"
+    lowest_activity = "N/A"
+    
+    if vehicles_data:
+        # Best producer (highest trip count)
+        max_vehicle = max(vehicles_data, key=lambda v: v['trips'])
+        best_producer = f"{max_vehicle['id']} ({max_vehicle['trips']} cycles)"
+        
+        # Lowest activity (lowest trip count, excluding 0)
+        active_vehicles = [v for v in vehicles_data if v['trips'] > 0]
+        if active_vehicles:
+            min_vehicle = min(active_vehicles, key=lambda v: v['trips'])
+            lowest_activity = f"{min_vehicle['id']} ({min_vehicle['trips']} cycles)"
+    
     return {
         'atelier_id': atelier_id,
         'vehicle_count': len(vehicles),
@@ -98,6 +113,8 @@ def get_date_range_data(atelier_id, start_date, end_date):
         'arret_hours': round(total_arret, 2),
         'efficiency_rate': efficiency_rate,
         'utilization_rate': utilization_rate,
+        'best_producer': best_producer,
+        'lowest_activity': lowest_activity,
         'vehicles': vehicles_data
     }
 
@@ -140,6 +157,7 @@ def generate_atelier_performance_report(atelier_id, start_date, end_date):
     
     data['atelier_name'] = atelier.name
     data['project_name'] = atelier.project.name if atelier.project else 'N/A'
+    data['project_id'] = atelier.project.id if atelier.project else 'Unknown'
     data['date_range'] = f"{start_date} to {end_date}"
     
     return data

@@ -929,7 +929,7 @@ def atelier_performance_pdf(atelier_id):
         
         pdf_buffer = generate_atelier_pdf(result)
         
-        filename = f"Rapport_Atelier_{result['atelier_name'].replace(' ', '_')}_{start_date}.pdf"
+        filename = f"{result['project_id']}_{result['atelier_name'].replace(' ', '_')}_{start_date}.pdf"
         
         return send_file(
             pdf_buffer,
@@ -1129,40 +1129,8 @@ def generate_atelier_pdf(data):
     story.append(overview_table)
     story.append(Spacer(1, 5*mm))
     
-    # === OPERATIONAL VIEW ===
-    story.append(Paragraph('VUE OPÉRATIONNELLE', section_title_style))
-    story.append(Spacer(1, 2*mm))
     
-    op_data = [
-        [
-            Paragraph('KM Hors Travail', card_title_style),
-            Paragraph('Distance Moy./Cycle', card_title_style),
-            Paragraph('Rapport Travail', card_title_style)
-        ],
-        [
-            Paragraph(f"<b>{data['total_km_out']}</b>", card_value_style),
-            Paragraph(f"<b>{data['avg_trip_distance']} km</b>", card_value_style),
-            Paragraph(f"<b>{round(data['total_km_work']/data['total_km']*100, 1) if data['total_km']>0 else 0}%</b>", card_value_style)
-        ]
-    ]
     
-    op_col_width = (landscape(A4)[0] - 30*mm) / 3
-    op_table = Table(op_data, colWidths=[op_col_width] * 3, rowHeights=[8*mm, 12*mm])
-    op_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#94a3b8')),
-        ('BACKGROUND', (0, 1), (-1, 1), colors.white),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('GRID', (0, 0), (-1, -1), 1, BORDER),
-        ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#94a3b8')),
-    ]))
-    story.append(op_table)
-    story.append(Spacer(1, 5*mm))
-    
-
     
     # === VEHICLE DETAILS TABLE ===
     story.append(Paragraph('DÉTAILS DES ENGINS', section_title_style))
