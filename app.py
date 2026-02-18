@@ -2092,7 +2092,7 @@ def generate_global_daily_pdf(data):
         [Paragraph(f"<b>Date:</b> {date_str}", subtitle_style), '', ''],
         [
             Paragraph(f"<b>{data['total_active_vehicles']}</b> Engins Actifs", subtitle_style),
-            Paragraph(f"<b>{data['total_cycles']}</b> Cycles Totaux", subtitle_style),
+            Paragraph(f"<b>{data['total_working_hours']} h</b> Heures Travaillées", subtitle_style),
             Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
         ]
     ]
@@ -2133,19 +2133,29 @@ def generate_global_daily_pdf(data):
                     Paragraph('<b>Véhicule</b>', table_header_style),
                     Paragraph('<b>Matricule</b>', table_header_style),
                     Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
+                    Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
                     Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
                     Paragraph('<b>Total KM</b>', table_header_style),
                     Paragraph('<b>Cycles</b>', table_header_style)
                 ]]
                 
                 for v in atelier['vehicles']:
+                    cycles_val = v['cycles']
+                    category = v.get('category', '').lower()
+                    
+                    # If not a camion and cycles is 0, show N/A
+                    display_cycles = f"{cycles_val}"
+                    if 'camion' not in category and cycles_val == 0:
+                        display_cycles = "N/A"
+                        
                     table_data.append([
                         v['id'],
                         v.get('matricule', '-'),
                         f"{v['km_before']}",
+                        f"{v['working_hours_before']} h",
                         f"{v['km_after']}",
                         f"{v['total_km']}",
-                        f"{v['cycles']}"
+                        display_cycles
                     ])
                 
                 # Atelier Totals Row
@@ -2153,12 +2163,13 @@ def generate_global_daily_pdf(data):
                     Paragraph('<b>TOTAL ATELIER</b>', table_header_style),
                     '',
                     Paragraph(f"<b>{atelier['km_before']}</b>", table_header_style),
+                    Paragraph(f"<b>{atelier['working_hours_before']} h</b>", table_header_style),
                     Paragraph(f"<b>{atelier['km_after']}</b>", table_header_style),
                     Paragraph(f"<b>{atelier['total_km']}</b>", table_header_style),
                     Paragraph(f"<b>{atelier['cycles']}</b>", table_header_style)
                 ])
                 
-                col_widths = [60*mm, 50*mm, 45*mm, 45*mm, 35*mm, 30*mm]
+                col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
                 v_table = Table(table_data, colWidths=col_widths, repeatRows=1)
                 v_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),

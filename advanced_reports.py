@@ -293,7 +293,7 @@ def generate_global_daily_report(target_date):
         'total_km_before': 0,
         'total_km_after': 0,
         'total_km': 0,
-        'total_cycles': 0,
+        'total_working_hours': 0,
         'total_active_vehicles': 0
     }
     
@@ -325,6 +325,8 @@ def generate_global_daily_report(target_date):
                 'km_before': 0,
                 'km_after': 0,
                 'total_km': 0,
+                'total_working_hours': 0,
+                'working_hours_before': 0,
                 'cycles': 0
             }
             
@@ -333,21 +335,28 @@ def generate_global_daily_report(target_date):
                 if v_activity:
                     km_b = v_activity.km_before
                     km_a = v_activity.km_after
+                    working_hours = v_activity.duration_course + v_activity.duration_attente
+                    working_hours_before = v_activity.hours_before_20h  # Using hours_before_20h as proxy for before 18:30
                     cyc = v_activity.trip_count
                     
                     atelier_data['vehicles'].append({
                         'id': v.id,
                         'name': v.name,
                         'matricule': v.matricule,
+                        'category': v.category,
                         'km_before': round(km_b, 2),
+                        'working_hours_before': round(working_hours_before, 2),
                         'km_after': round(km_a, 2),
                         'total_km': round(km_b + km_a, 2),
-                        'cycles': round(cyc, 1)
+                        'cycles': round(cyc, 1),
+                        'working_hours': round(working_hours, 2)
                     })
                     
                     atelier_data['km_before'] += km_b
                     atelier_data['km_after'] += km_a
                     atelier_data['total_km'] += (km_b + km_a)
+                    atelier_data['total_working_hours'] += working_hours
+                    atelier_data['working_hours_before'] += working_hours_before
                     atelier_data['cycles'] += cyc
                     
             if atelier_data['vehicles']:
@@ -358,6 +367,8 @@ def generate_global_daily_report(target_date):
                 atelier_data['km_before'] = round(atelier_data['km_before'], 2)
                 atelier_data['km_after'] = round(atelier_data['km_after'], 2)
                 atelier_data['total_km'] = round(atelier_data['total_km'], 2)
+                atelier_data['total_working_hours'] = round(atelier_data['total_working_hours'], 2)
+                atelier_data['working_hours_before'] = round(atelier_data['working_hours_before'], 2)
                 atelier_data['cycles'] = round(atelier_data['cycles'], 1)
                 
                 project_data['ateliers'].append(atelier_data)
@@ -366,7 +377,7 @@ def generate_global_daily_report(target_date):
                 global_data['total_km_before'] += atelier_data['km_before']
                 global_data['total_km_after'] += atelier_data['km_after']
                 global_data['total_km'] += atelier_data['total_km']
-                global_data['total_cycles'] += atelier_data['cycles']
+                global_data['total_working_hours'] += atelier_data['total_working_hours']
                 global_data['total_active_vehicles'] += len(atelier_data['vehicles'])
                 
         if project_data['ateliers']:
@@ -376,7 +387,7 @@ def generate_global_daily_report(target_date):
     global_data['total_km_before'] = round(global_data['total_km_before'], 2)
     global_data['total_km_after'] = round(global_data['total_km_after'], 2)
     global_data['total_km'] = round(global_data['total_km'], 2)
-    global_data['total_cycles'] = round(global_data['total_cycles'], 1)
+    global_data['total_working_hours'] = round(global_data['total_working_hours'], 2)
     
     return global_data
 
