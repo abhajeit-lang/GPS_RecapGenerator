@@ -209,17 +209,22 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
     Shows vehicles with movement before/after 18:30 similar to daily activity report.
     """
     project = Project.query.get(project_id)
-    atelier = Atelier.query.get(atelier_id)
-    
-    if not project or not atelier:
+    if not project:
         return None
-    
-    # Verify atelier belongs to project
-    if atelier.project_id != project_id:
-        return None
-    
-    # Get vehicles in this atelier
-    vehicles = Vehicle.query.filter_by(atelier_id=atelier_id).all()
+        
+    if atelier_id and int(atelier_id) > 0:
+        atelier = Atelier.query.get(atelier_id)
+        if not atelier or atelier.project_id != project_id:
+            return None
+        vehicles = Vehicle.query.filter_by(atelier_id=atelier_id).all()
+        atelier_name = atelier.name
+    else:
+        # Aggregate all ateliers for the project
+        vehicles = []
+        for a in project.ateliers:
+            vehicles.extend(a.vehicles)
+        atelier_name = "Tous les Ateliers"
+        atelier_id = 0
     
     if not vehicles:
         return None
@@ -237,28 +242,43 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
     total_km_before = 0
     total_km_after = 0
     total_cycles = 0
+    total_working_hours = 0
+    total_working_hours_before = 0
     
     for v in vehicles:
         v_activity = next((a for a in activities if a.vehicle_code == v.id), None)
+        
+        km_before = 0
+        km_after = 0
+        cycles = 0
+        working_hours = 0
+        working_hours_before = 0
         
         if v_activity:
             km_before = v_activity.km_before
             km_after = v_activity.km_after
             cycles = v_activity.trip_count
-            
-            vehicle_data.append({
-                'id': v.id,
-                'name': v.name,
-                'matricule': v.matricule,
-                'km_before': round(km_before, 2),
-                'km_after': round(km_after, 2),
-                'total_km': round(km_before + km_after, 2),
-                'cycles': round(cycles, 1)
-            })
+            working_hours = v_activity.duration_course + v_activity.duration_attente
+            working_hours_before = v_activity.hours_before_20h # Proxy for before 18:30
             
             total_km_before += km_before
             total_km_after += km_after
             total_cycles += cycles
+            total_working_hours += working_hours
+            total_working_hours_before += working_hours_before
+            
+        vehicle_data.append({
+            'id': v.id,
+            'name': v.name,
+            'matricule': v.matricule,
+            'category': v.category,
+            'km_before': round(km_before, 2),
+            'working_hours_before': round(working_hours_before, 2),
+            'km_after': round(km_after, 2),
+            'total_km': round(km_before + km_after, 2),
+            'cycles': round(cycles, 1),
+            'working_hours': round(working_hours, 2)
+        })
     
     # Sort by total km descending
     vehicle_data.sort(key=lambda x: x['total_km'], reverse=True)
@@ -268,13 +288,15 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
         'project_name': project.name,
         'province': project.province or 'N/A',
         'atelier_id': atelier_id,
-        'atelier_name': atelier.name,
+        'atelier_name': atelier_name,
         'date': target_date,
         'vehicles': vehicle_data,
         'total_km_before': round(total_km_before, 2),
         'total_km_after': round(total_km_after, 2),
         'total_km': round(total_km_before + total_km_after, 2),
         'total_cycles': round(total_cycles, 1),
+        'total_working_hours': round(total_working_hours, 2),
+        'total_working_hours_before': round(total_working_hours_before, 2),
         'vehicle_count': len(vehicles),
         'active_vehicle_count': len(vehicle_data)
     }
@@ -316,8 +338,7 @@ def generate_global_daily_report(target_date):
                 VehicleActivity.date == target_date
             ).all()
             
-            if not activities:
-                continue
+            # Removed "if not activities: continue" to show ateliers with no recorded activity
                 
             atelier_data = {
                 'atelier_name': atelier.name,
@@ -332,6 +353,13 @@ def generate_global_daily_report(target_date):
             
             for v in vehicles:
                 v_activity = next((a for a in activities if a.vehicle_code == v.id), None)
+                
+                km_b = 0
+                km_a = 0
+                working_hours = 0
+                working_hours_before = 0
+                cyc = 0
+                
                 if v_activity:
                     km_b = v_activity.km_before
                     km_a = v_activity.km_after
@@ -339,25 +367,26 @@ def generate_global_daily_report(target_date):
                     working_hours_before = v_activity.hours_before_20h  # Using hours_before_20h as proxy for before 18:30
                     cyc = v_activity.trip_count
                     
-                    atelier_data['vehicles'].append({
-                        'id': v.id,
-                        'name': v.name,
-                        'matricule': v.matricule,
-                        'category': v.category,
-                        'km_before': round(km_b, 2),
-                        'working_hours_before': round(working_hours_before, 2),
-                        'km_after': round(km_a, 2),
-                        'total_km': round(km_b + km_a, 2),
-                        'cycles': round(cyc, 1),
-                        'working_hours': round(working_hours, 2)
-                    })
-                    
-                    atelier_data['km_before'] += km_b
-                    atelier_data['km_after'] += km_a
-                    atelier_data['total_km'] += (km_b + km_a)
-                    atelier_data['total_working_hours'] += working_hours
-                    atelier_data['working_hours_before'] += working_hours_before
-                    atelier_data['cycles'] += cyc
+                atelier_data['vehicles'].append({
+                    'id': v.id,
+                    'name': v.name,
+                    'matricule': v.matricule,
+                    'category': v.category,
+                    'km_before': round(km_b, 2),
+                    'working_hours_before': round(working_hours_before, 2),
+                    'km_after': round(km_a, 2),
+                    'total_km': round(km_b + km_a, 2),
+                    'cycles': round(cyc, 1),
+                    'working_hours': round(working_hours, 2)
+                })
+                
+                # Accumulate totals
+                atelier_data['km_before'] += km_b
+                atelier_data['km_after'] += km_a
+                atelier_data['total_km'] += (km_b + km_a)
+                atelier_data['total_working_hours'] += working_hours
+                atelier_data['working_hours_before'] += working_hours_before
+                atelier_data['cycles'] += cyc
                     
             if atelier_data['vehicles']:
                 # Sort vehicles by km
@@ -378,7 +407,7 @@ def generate_global_daily_report(target_date):
                 global_data['total_km_after'] += atelier_data['km_after']
                 global_data['total_km'] += atelier_data['total_km']
                 global_data['total_working_hours'] += atelier_data['total_working_hours']
-                global_data['total_active_vehicles'] += len(atelier_data['vehicles'])
+                global_data['total_active_vehicles'] += len(vehicles) # Count all assigned vehicles
                 
         if project_data['ateliers']:
             global_data['projects'].append(project_data)

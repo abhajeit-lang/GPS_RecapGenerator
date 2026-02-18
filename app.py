@@ -947,7 +947,12 @@ def project_atelier_daily_pdf():
     try:
         data = request.json
         project_id = int(data.get('project_id'))
-        atelier_id = int(data.get('atelier_id'))
+        atelier_id = data.get('atelier_id')
+        if atelier_id:
+            atelier_id = int(atelier_id)
+        else:
+            atelier_id = 0
+            
         target_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
         
         result = generate_project_atelier_daily_report(project_id, atelier_id, target_date)
@@ -1832,7 +1837,8 @@ def generate_project_atelier_daily_pdf(data):
     styles = getSampleStyleSheet()
     
     # Colors
-    HEADER_BG = colors.HexColor('#0284c7')
+    HEADER_BG = colors.HexColor('#1e293b') # Dark slate for main header
+    PROJECT_HEADER_BG = colors.HexColor('#0284c7') # Royal blue for sub-header
     BORDER = colors.HexColor('#cbd5e1')
     
     # Styles
@@ -1893,19 +1899,19 @@ def generate_project_atelier_daily_pdf(data):
     story.append(Paragraph(info_text, subtitle_style))
     story.append(Spacer(1, 5*mm))
     
-    # Summary
+    # Summary Box
     summary_data = [[
-        Paragraph(f"<b>{data['active_vehicle_count']}/{data['vehicle_count']}</b> Engins Actifs", subtitle_style),
-        Paragraph(f"<b>{data['total_cycles']}</b> Cycles", subtitle_style),
-        Paragraph(f"<b>{data['total_km']} km</b> Total", subtitle_style)
+        Paragraph(f"<b>{data['vehicle_count']}</b> Engins", subtitle_style),
+        Paragraph(f"<b>{data['total_working_hours']} h</b> Heures Travaillées", subtitle_style),
+        Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
     ]]
     summary_table = Table(summary_data, colWidths=[(landscape(A4)[0] - 30*mm) / 3] * 3)
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f1f5f9')),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
         ('BOX', (0, 0), (-1, -1), 1, BORDER),
     ]))
     story.append(summary_table)
@@ -1917,19 +1923,29 @@ def generate_project_atelier_daily_pdf(data):
             Paragraph('<b>Véhicule</b>', table_header_style),
             Paragraph('<b>Matricule</b>', table_header_style),
             Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
+            Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
             Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
             Paragraph('<b>Total KM</b>', table_header_style),
             Paragraph('<b>Cycles</b>', table_header_style)
         ]]
         
         for v in data['vehicles']:
+            cycles_val = v['cycles']
+            category = v.get('category', '').lower()
+            
+            # STRICT LOGIC: Only 'camion' shows cycles.
+            display_cycles = "N/A"
+            if category == 'camion':
+                display_cycles = f"{cycles_val}"
+                
             table_data.append([
                 v['id'],
                 v.get('matricule', '-'),
                 f"{v['km_before']}",
+                f"{v['working_hours_before']} h",
                 f"{v['km_after']}",
                 f"{v['total_km']}",
-                f"{v['cycles']}"
+                display_cycles
             ])
         
         # Add totals row
@@ -1937,25 +1953,24 @@ def generate_project_atelier_daily_pdf(data):
             Paragraph('<b>TOTAL</b>', table_header_style),
             '',
             Paragraph(f"<b>{data['total_km_before']}</b>", table_header_style),
+            Paragraph(f"<b>{data['total_working_hours_before']} h</b>", table_header_style),
             Paragraph(f"<b>{data['total_km_after']}</b>", table_header_style),
             Paragraph(f"<b>{data['total_km']}</b>", table_header_style),
             Paragraph(f"<b>{data['total_cycles']}</b>", table_header_style)
         ])
         
-        col_widths = [60*mm, 50*mm, 45*mm, 45*mm, 35*mm, 30*mm]
-        vehicle_table = Table(table_data, colWidths=col_widths)
+        col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
+        vehicle_table = Table(table_data, colWidths=col_widths, repeatRows=1)
         vehicle_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), HEADER_BG),
+            ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-            ('BOX', (0, 0), (-1, -1), 1.5, HEADER_BG),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e2e8f0')),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ]))
         story.append(vehicle_table)
@@ -2143,10 +2158,10 @@ def generate_global_daily_pdf(data):
                     cycles_val = v['cycles']
                     category = v.get('category', '').lower()
                     
-                    # If not a camion and cycles is 0, show N/A
-                    display_cycles = f"{cycles_val}"
-                    if 'camion' not in category and cycles_val == 0:
-                        display_cycles = "N/A"
+                    # STRICT LOGIC: Only 'camion' shows cycles.
+                    display_cycles = "N/A"
+                    if category == 'camion':
+                        display_cycles = f"{cycles_val}"
                         
                     table_data.append([
                         v['id'],

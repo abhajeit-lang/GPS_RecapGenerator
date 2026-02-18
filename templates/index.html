@@ -1907,10 +1907,10 @@
             fetch('/hierarchy')
                 .then(response => response.json())
                 .then(data => {
-                    vueProjetHierarchy = data;
+                    vueProjetHierarchy = data.projects; // Store only the projects array
                     const select = document.getElementById('vue_projet_project_select');
                     select.innerHTML = '<option value="">-- Choisir un projet --</option>';
-                    data.forEach(project => {
+                    vueProjetHierarchy.forEach(project => {
                         const option = document.createElement('option');
                         option.value = project.id;
                         option.textContent = `${project.name} (${project.province || 'N/A'})`;
@@ -1946,8 +1946,8 @@
             const atelierId = document.getElementById('vue_projet_atelier_select').value;
             const date = document.getElementById('vue_projet_date_select').value;
 
-            if (!projectId || !atelierId || !date) {
-                alert('Veuillez sélectionner un projet, un atelier et une date.');
+            if (!projectId || !date) {
+                alert('Veuillez sélectionner un projet et une date.');
                 return;
             }
 
@@ -1956,7 +1956,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     project_id: parseInt(projectId),
-                    atelier_id: parseInt(atelierId),
+                    atelier_id: parseInt(atelierId) || 0,
                     date: date
                 })
             })
