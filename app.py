@@ -1871,6 +1871,16 @@ def generate_project_atelier_daily_pdf(data):
         fontName='Helvetica-Bold'
     )
     
+    atelier_title_style = ParagraphStyle(
+        'AtelierTitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#0369a1'),
+        fontName='Helvetica-Bold',
+        spaceBefore=10,
+        spaceAfter=5
+    )
+    
     story = []
     
     # Header
@@ -1917,64 +1927,72 @@ def generate_project_atelier_daily_pdf(data):
     story.append(summary_table)
     story.append(Spacer(1, 7*mm))
     
-    # Vehicle table
-    if data['vehicles']:
-        table_data = [[
-            Paragraph('<b>Véhicule</b>', table_header_style),
-            Paragraph('<b>Matricule</b>', table_header_style),
-            Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
-            Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
-            Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
-            Paragraph('<b>Total KM</b>', table_header_style),
-            Paragraph('<b>Cycles</b>', table_header_style)
-        ]]
-        
-        for v in data['vehicles']:
-            cycles_val = v['cycles']
-            category = v.get('category', '').lower()
+    # Loop through Ateliers
+    if data.get('ateliers'):
+        for atelier in data['ateliers']:
+            # Atelier Header
+            story.append(Spacer(1, 5*mm))
+            story.append(Paragraph(f"<b>ATELIER: {atelier['atelier_name']}</b>", atelier_title_style))
+            story.append(Spacer(1, 3*mm))
             
-            # STRICT LOGIC: Only 'camion' shows cycles.
-            display_cycles = "N/A"
-            if category == 'camion':
-                display_cycles = f"{cycles_val}"
+            table_data = [[
+                Paragraph('<b>Véhicule</b>', table_header_style),
+                Paragraph('<b>Matricule</b>', table_header_style),
+                Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
+                Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
+                Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
+                Paragraph('<b>Total KM</b>', table_header_style),
+                Paragraph('<b>Cycles</b>', table_header_style)
+            ]]
+            
+            for v in atelier['vehicles']:
+                cycles_val = v['cycles']
+                category = v.get('category', '').lower()
                 
+                # STRICT LOGIC: Only 'camion' shows cycles.
+                display_cycles = "N/A"
+                if category == 'camion':
+                    display_cycles = f"{cycles_val}"
+                    
+                table_data.append([
+                    v['id'],
+                    v.get('matricule', '-'),
+                    f"{v['km_before']}",
+                    f"{v['working_hours_before']} h",
+                    f"{v['km_after']}",
+                    f"{v['total_km']}",
+                    display_cycles
+                ])
+            
+            # Add atelier totals row
             table_data.append([
-                v['id'],
-                v.get('matricule', '-'),
-                f"{v['km_before']}",
-                f"{v['working_hours_before']} h",
-                f"{v['km_after']}",
-                f"{v['total_km']}",
-                display_cycles
+                Paragraph('<b>TOTAL ATELIER</b>', table_header_style),
+                '',
+                Paragraph(f"<b>{atelier['total_km_before']}</b>", table_header_style),
+                Paragraph(f"<b>{atelier['total_working_hours_before']} h</b>", table_header_style),
+                Paragraph(f"<b>{atelier['total_km_after']}</b>", table_header_style),
+                Paragraph(f"<b>{atelier['total_km']}</b>", table_header_style),
+                Paragraph(f"<b>{atelier['total_cycles']}</b>", table_header_style)
             ])
-        
-        # Add totals row
-        table_data.append([
-            Paragraph('<b>TOTAL</b>', table_header_style),
-            '',
-            Paragraph(f"<b>{data['total_km_before']}</b>", table_header_style),
-            Paragraph(f"<b>{data['total_working_hours_before']} h</b>", table_header_style),
-            Paragraph(f"<b>{data['total_km_after']}</b>", table_header_style),
-            Paragraph(f"<b>{data['total_km']}</b>", table_header_style),
-            Paragraph(f"<b>{data['total_cycles']}</b>", table_header_style)
-        ])
-        
-        col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
-        vehicle_table = Table(table_data, colWidths=col_widths, repeatRows=1)
-        vehicle_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ]))
-        story.append(vehicle_table)
+            
+            col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
+            vehicle_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            vehicle_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('GRID', (0, 0), (-1, -1), 0.5, BORDER),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f1f5f9')),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ]))
+            story.append(vehicle_table)
+            story.append(Spacer(1, 5*mm))
     else:
+        story.append(Spacer(1, 10*mm))
         story.append(Paragraph("Aucune activité enregistrée pour cette date.", subtitle_style))
     
     doc.build(story, canvasmaker=NumberedCanvas)
@@ -2106,7 +2124,7 @@ def generate_global_daily_pdf(data):
     summary_data = [
         [Paragraph(f"<b>Date:</b> {date_str}", subtitle_style), '', ''],
         [
-            Paragraph(f"<b>{data['total_active_vehicles']}</b> Engins Actifs", subtitle_style),
+            Paragraph(f"<b>{data['total_active_vehicles']}</b> Engins", subtitle_style),
             Paragraph(f"<b>{data['total_working_hours']} h</b> Heures Travaillées", subtitle_style),
             Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
         ]
