@@ -423,7 +423,16 @@
                     <div style="display: flex; gap: 20px;">
                         <!-- Assigned Vehicles -->
                         <div style="flex: 1;">
-                            <h4 style="margin-bottom: 10px; color: #28a745;">✅ Engins dans cet Atelier</h4>
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <h4 style="margin: 0; color: #28a745;">✅ Engins dans cet Atelier</h4>
+                                <button onclick="initializeAtelier()"
+                                    style="background: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.2s;"
+                                    onmouseover="this.style.background='#dc2626'"
+                                    onmouseout="this.style.background='#ef4444'">
+                                    Initialiser
+                                </button>
+                            </div>
                             <div id="assignedEnginsList"
                                 style="height: 300px; overflow-y: auto; background: #f0fff4; border: 1px solid #c3e6cb; border-radius: 5px; padding: 5px;">
                                 <!-- List -->
@@ -1075,6 +1084,38 @@
                 })
                 .catch(err => {
                     console.error('Error unassigning vehicle:', err);
+                    alert('Erreur: ' + err.message);
+                });
+        }
+
+        function initializeAtelier() {
+            if (!selectedAtelierForAssign) {
+                alert('Veuillez d\'abord sélectionner un atelier.');
+                return;
+            }
+
+            if (!confirm('Êtes-vous sûr de vouloir retirer TOUS les engins de cet atelier? Cette action est irréversible.')) {
+                return;
+            }
+
+            fetch(`/ateliers/${selectedAtelierForAssign}/initialize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Atelier initialisé avec succès! Tous les engins ont été retirés.');
+                        loadHierarchy();
+                        setTimeout(() => {
+                            loadEnginsForAtelier();
+                        }, 500);
+                    } else {
+                        alert('Erreur lors de l\'initialisation: ' + (data.error || 'Erreur inconnue'));
+                    }
+                })
+                .catch(err => {
+                    console.error('Error initializing atelier:', err);
                     alert('Erreur: ' + err.message);
                 });
         }
@@ -1970,7 +2011,9 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `Rapport_Quotidien_${date}.pdf`;
+                    const projectName = document.getElementById('vue_projet_project_select').options[document.getElementById('vue_projet_project_select').selectedIndex].text;
+                    const projectNameClean = projectName.replace(/ /g, '_');
+                    a.download = `${projectNameClean}_${date}.pdf`;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
