@@ -439,14 +439,14 @@
                             </div>
                         </div>
 
-                        <!-- Unassigned Vehicles -->
+                        <!-- All Vehicles Search Panel -->
                         <div style="flex: 1;">
-                            <h4 style="margin-bottom: 10px; color: #666;">🚜 Engins Disponibles (Non Assignés)</h4>
+                            <h4 style="margin-bottom: 10px; color: #666;">🔍 Rechercher un Engin</h4>
                             <div style="margin-bottom: 5px; display: flex; gap: 5px;">
-                                <input type="text" id="searchVehicle" placeholder="Rechercher..."
-                                    onkeyup="filterUnassigned()" style="padding: 5px; font-size: 12px;">
+                                <input type="text" id="searchVehicle" placeholder="Tapez l'ID de l'engin..."
+                                    onkeyup="filterAllVehicles()" style="padding: 5px; font-size: 12px; flex: 1;">
                             </div>
-                            <div id="unassignedList"
+                            <div id="allVehiclesList"
                                 style="height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 5px;">
                                 <!-- List populated by JS -->
                             </div>
@@ -1011,24 +1011,64 @@
         }
 
         function renderUnassigned() {
-            const list = document.getElementById('unassignedList');
+            const list = document.getElementById('allVehiclesList');
             const assignedList = document.getElementById('assignedEnginsList');
 
-            // Populate Unassigned
-            if (!hierarchyData.unassigned_vehicles.length) {
-                list.innerHTML = '<p style="padding: 10px; color:#999;">Tous les véhicules sont assignés.</p>';
-            } else {
-                let html = '';
+            // Build a map of vehicle -> atelier for ALL assigned vehicles
+            let assignedMap = {}; // vehicleId -> { atelierName, atelierId }
+            if (hierarchyData && hierarchyData.projects) {
+                hierarchyData.projects.forEach(p => {
+                    p.ateliers.forEach(a => {
+                        if (a.vehicles) {
+                            a.vehicles.forEach(v => {
+                                assignedMap[v.id] = { atelierName: a.name, atelierId: a.id, vehicleName: v.name };
+                            });
+                        }
+                    });
+                });
+            }
+
+            // Build HTML: Unassigned first, then assigned (frozen)
+            let html = '';
+
+            // Section: Unassigned vehicles (selectable)
+            if (hierarchyData.unassigned_vehicles && hierarchyData.unassigned_vehicles.length) {
+                html += '<div style="padding: 6px 8px; background: #e8f5e9; font-weight: bold; font-size: 12px; color: #2e7d32; border-radius: 3px; margin-bottom: 4px;">🟢 Disponibles (Non Assignés)</div>';
                 hierarchyData.unassigned_vehicles.forEach(v => {
-                    html += `<label style="display: block; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
+                    html += `<label class="vehicle-item" data-type="unassigned" style="display: block; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
                         <input type="checkbox" class="unassigned-check" value="${v.id}">
                         <strong>${v.id}</strong> <span style="color:#666; font-size: 0.9em;">(${v.name})</span>
                     </label>`;
                 });
-                list.innerHTML = html;
+            } else {
+                html += '<div style="padding: 6px 8px; background: #e8f5e9; font-weight: bold; font-size: 12px; color: #2e7d32; border-radius: 3px; margin-bottom: 4px;">🟢 Disponibles (Non Assignés)</div>';
+                html += '<p style="padding: 6px 10px; color:#999; font-size: 12px;">Tous les véhicules sont assignés.</p>';
             }
 
-            // Populate Assigned - Find vehicles for selected atelier
+            // Section: Assigned vehicles (read-only / frozen)
+            let assignedEntries = Object.entries(assignedMap);
+            if (assignedEntries.length) {
+                html += '<div style="padding: 6px 8px; background: #fff3e0; font-weight: bold; font-size: 12px; color: #ef6c00; border-radius: 3px; margin: 8px 0 4px 0;">🔒 Déjà Assignés (consultation)</div>';
+                assignedEntries.sort((a, b) => a[0].localeCompare(b[0]));
+                assignedEntries.forEach(([vId, info]) => {
+                    // Skip vehicles assigned to the currently selected atelier (they're shown on the left)
+                    if (info.atelierId === selectedAtelierForAssign) return;
+                    html += `<div class="vehicle-item" data-type="assigned" style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; background: #fafafa; opacity: 0.85;">
+                        <div style="flex: 1;">
+                            <strong style="color: #555;">${vId}</strong><br>
+                            <small style="color:#999;">${info.vehicleName}</small>
+                        </div>
+                        <span onclick="goToAtelier(${info.atelierId})" title="Aller à cet atelier" style="background: #e3f2fd; color: #1565c0; padding: 3px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all 0.2s;"
+                            onmouseover="this.style.background='#bbdefb'" onmouseout="this.style.background='#e3f2fd'">
+                            📍 ${info.atelierName}
+                        </span>
+                    </div>`;
+                });
+            }
+
+            list.innerHTML = html;
+
+            // Populate Assigned list (left panel) - Find vehicles for selected atelier
             if (!selectedAtelierForAssign) {
                 assignedList.innerHTML = '<p style="padding:10px; color:#999;">Sélectionnez un atelier pour voir les engins.</p>';
                 return;
@@ -1046,9 +1086,9 @@
             if (assignedVehicles.length === 0) {
                 assignedList.innerHTML = '<p style="padding:10px; color:#999;">Aucun engin dans cet atelier.</p>';
             } else {
-                let html = '';
+                let ahtml = '';
                 assignedVehicles.forEach(v => {
-                    html += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #c3e6cb;">
+                    ahtml += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #c3e6cb;">
                         <div style="flex: 1;">
                             <strong>${v.id}</strong><br>
                             <small style="color:#666;">${v.name}</small>
@@ -1059,8 +1099,24 @@
                         </button>
                     </div>`;
                 });
-                assignedList.innerHTML = html;
+                assignedList.innerHTML = ahtml;
             }
+        }
+
+        function goToAtelier(atelierId) {
+            const select = document.getElementById('atelierSelectForAssign');
+            select.value = atelierId;
+            loadEnginsForAtelier();
+        }
+
+        function filterAllVehicles() {
+            const term = document.getElementById('searchVehicle').value.toLowerCase();
+            const items = document.querySelectorAll('#allVehiclesList .vehicle-item');
+            items.forEach(item => {
+                const text = item.innerText.toLowerCase();
+                if (text.includes(term)) item.style.display = '';
+                else item.style.display = 'none';
+            });
         }
 
         function unassignVehicle(vehicleId) {
@@ -1120,15 +1176,6 @@
                 });
         }
 
-        function filterUnassigned() {
-            const term = document.getElementById('searchVehicle').value.toLowerCase();
-            const labels = document.querySelectorAll('#unassignedList label');
-            labels.forEach(lbl => {
-                const text = lbl.innerText.toLowerCase();
-                if (text.includes(term)) lbl.style.display = 'block';
-                else lbl.style.display = 'none';
-            });
-        }
 
         function deleteProject(projectId) {
             if (!confirm('Supprimer ce projet? Cette action est irréversible.')) return;
