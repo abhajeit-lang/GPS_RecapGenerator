@@ -517,6 +517,15 @@
                             <input type="date" id="comp_end_date" style="width: 100%;">
                         </div>
                     </div>
+                    <!-- Project Filter -->
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: bold;">Filtrer par
+                            Projet:</label>
+                        <select id="comp_project_select" onchange="filterComparativeByProject()"
+                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                            <option value="">-- Tous les Projets --</option>
+                        </select>
+                    </div>
 
                     <!-- Atelier Selection -->
                     <div id="comparativeAtelierList"
@@ -524,10 +533,16 @@
                         <p style="color:#999;">Chargement des ateliers...</p>
                     </div>
 
-                    <button onclick="generateComparativeReport()"
-                        style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                        📊 Générer l'Analyse Comparative
-                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="generateComparativeReport()"
+                            style="background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            📊 Générer l'Analyse Comparative
+                        </button>
+                        <button onclick="downloadComparativePdf()"
+                            style="background: #0369a1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                            📥 Télécharger PDF avec Graphiques
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Results Display -->
@@ -1820,6 +1835,57 @@
                 .catch(err => {
                     document.getElementById('advReportLoading').style.display = 'none';
                     document.getElementById('advReportMessage').innerHTML = `<p style="color:#dc3545;">Erreur: ${err.message}</p>`;
+                });
+        }
+
+        function downloadComparativePdf() {
+            const startDate = document.getElementById('comp_start_date').value;
+            const endDate = document.getElementById('comp_end_date').value;
+            const checked = document.querySelectorAll('.comp-atelier-check:checked');
+            const atelierIds = Array.from(checked).map(cb => parseInt(cb.value));
+
+            if (!startDate || !endDate) {
+                alert('Veuillez sélectionner les dates de début et fin.');
+                return;
+            }
+
+            if (atelierIds.length === 0) {
+                alert('Sélectionnez au moins un atelier.');
+                return;
+            }
+
+            document.getElementById('advReportLoading').style.display = 'block';
+
+            fetch('/reports/comparative/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    atelier_ids: atelierIds,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            })
+                .then(response => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    return response.json().then(err => { throw new Error(err.error || 'Erreur inconnue') });
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Analyse_Comparative_${startDate}_${endDate}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    alert('✓ Rapport PDF avec graphiques téléchargé avec succès!');
+                })
+                .catch(err => {
+                    document.getElementById('advReportLoading').style.display = 'none';
+                    alert(`Erreur: ${err.message}`);
                 });
         }
 

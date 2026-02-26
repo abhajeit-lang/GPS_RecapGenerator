@@ -902,6 +902,186 @@ def comparative_report():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@app.route('/reports/comparative/pdf', methods=['POST'])
+def comparative_report_pdf():
+    """Generate comparative analysis PDF with charts."""
+    try:
+        data = request.json
+        atelier_ids = data.get('atelier_ids', [])
+        project_id = data.get('project_id')
+        start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        # If project_id is provided, get all ateliers for that project
+        project_name = None
+        if project_id:
+            from models import Project
+            project = Project.query.get(project_id)
+            if not project:
+                return jsonify({'error': 'Projet introuvable'}), 404
+            atelier_ids = [a.id for a in project.ateliers]
+            project_name = project.name
+        
+        if not atelier_ids:
+            return jsonify({'error': 'At least one atelier required'}), 400
+        
+        results = generate_comparative_report(atelier_ids, start_date, end_date)
+        
+        if not results:
+            return jsonify({'error': 'Aucune donnée trouvée'}), 404
+        
+        pdf_buffer = generate_comparative_pdf(results, start_date, end_date, project_name)
+        
+        prefix = project_name.replace(' ', '_') if project_name else 'Comparative'
+        filename = f"Analyse_{prefix}_{start_date}_{end_date}.pdf"
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+def generate_comparative_pdf(results, start_date, end_date, project_name=None):
+    """Generate comparative analysis PDF with bar charts per atelier."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_CENTER
+    from io import BytesIO
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=10*mm, bottomMargin=10*mm, leftMargin=15*mm, rightMargin=15*mm)
+    
+    styles = getSampleStyleSheet()
+    HEADER_BG = colors.HexColor('#0369a1')
+    
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#334155'), fontName='Helvetica')
+    section_style = ParagraphStyle('Section', parent=styles['Normal'], fontSize=13, textColor=colors.HexColor('#0369a1'), fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=5)
+    
+    # Category color palette
+    CATEGORY_COLORS = {
+        'CAMION': '#2563eb',
+        'PELLE': '#dc2626',
+        'BULLDOZER': '#f59e0b',
+        'CHARGEUSE': '#10b981',
+        'COMPACTEUR': '#8b5cf6',
+        'CITERNE': '#ec4899',
+        'BENNE': '#06b6d4',
+        'NIVELEUSE': '#84cc16',
+        'TRACTEUR': '#f97316',
+        'DIVERS': '#64748b',
+    }
+    DEFAULT_COLOR = '#94a3b8'
+    
+    story = []
+    
+    # Header
+    title = 'ANALYSE COMPARATIVE DES ATELIERS'
+    if project_name:
+        title = f'ANALYSE COMPARATIVE - {project_name.upper()}'
+    header_data = [[title]]
+    header_table = Table(header_data, colWidths=[landscape(A4)[0] - 30*mm])
+    header_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 16),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 3*mm))
+    
+    date_str = f"Période: {start_date.strftime('%d/%m/%Y')} au {end_date.strftime('%d/%m/%Y')}"
+    story.append(Paragraph(f"<b>{date_str}</b>", subtitle_style))
+    story.append(Spacer(1, 5*mm))
+    
+    # For each atelier, generate ONE chart with ALL vehicle types color-coded
+    for atelier_data in results:
+        atelier_name = atelier_data.get('atelier_name', 'N/A')
+        vehicles = atelier_data.get('vehicles', [])
+        
+        if not vehicles:
+            story.append(Paragraph(f"<b>ATELIER: {atelier_name}</b> — Aucune donnée", section_style))
+            story.append(Spacer(1, 5*mm))
+            continue
+        
+        # Sort all vehicles by working_hours descending
+        vehicles.sort(key=lambda x: x['working_hours'], reverse=True)
+        
+        v_ids = [v['id'] for v in vehicles]
+        v_hours = [v['working_hours'] for v in vehicles]
+        v_cats = [v.get('category', 'Autre').upper() for v in vehicles]
+        bar_colors = [CATEGORY_COLORS.get(cat, DEFAULT_COLOR) for cat in v_cats]
+        
+        # Create ONE chart with all vehicles
+        fig_width = max(10, len(v_ids) * 0.55)
+        fig, ax = plt.subplots(figsize=(fig_width, 4.5))
+        
+        bars = ax.bar(range(len(v_ids)), v_hours, color=bar_colors, edgecolor='white', linewidth=0.5, width=0.75)
+        
+        # Add value labels on top of bars
+        for bar, h in zip(bars, v_hours):
+            if h > 0:
+                hrs = int(h)
+                mins = int(round((h - hrs) * 60))
+                label = f"{hrs}h{mins:02d}" if hrs > 0 else f"{mins}min"
+                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.08,
+                       label, ha='center', va='bottom', fontsize=6, fontweight='bold', color='#334155')
+        
+        ax.set_xlabel('Code Engin', fontsize=9, fontweight='bold', color='#475569')
+        ax.set_ylabel('Heures', fontsize=9, fontweight='bold', color='#475569')
+        ax.set_title(f'ATELIER: {atelier_name}', fontsize=13, fontweight='bold', color='#0369a1', pad=12)
+        
+        ax.set_xticks(range(len(v_ids)))
+        ax.set_xticklabels(v_ids, rotation=45, ha='right', fontsize=6)
+        ax.set_ylim(0, max(v_hours) * 1.3 if v_hours else 1)
+        
+        # Style
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#cbd5e1')
+        ax.spines['bottom'].set_color('#cbd5e1')
+        ax.tick_params(colors='#64748b', labelsize=7)
+        ax.yaxis.grid(True, alpha=0.3, color='#cbd5e1')
+        ax.set_axisbelow(True)
+        
+        # Color legend for categories
+        unique_cats = sorted(set(v_cats))
+        legend_patches = [Patch(facecolor=CATEGORY_COLORS.get(cat, DEFAULT_COLOR), label=cat) for cat in unique_cats]
+        ax.legend(handles=legend_patches, loc='upper right', fontsize=7, framealpha=0.9,
+                 edgecolor='#e2e8f0', fancybox=True, ncol=min(len(unique_cats), 4))
+        
+        plt.tight_layout()
+        
+        # Save chart to buffer
+        chart_buffer = BytesIO()
+        fig.savefig(chart_buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+        chart_buffer.seek(0)
+        
+        # Add chart to story — use full page width
+        page_width = landscape(A4)[0] - 30*mm
+        img = Image(chart_buffer, width=page_width, height=115*mm)
+        story.append(img)
+        
+        # Add page break between ateliers
+        story.append(PageBreak())
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 @app.route('/reports/atelier/<int:atelier_id>', methods=['POST'])
 def atelier_performance(atelier_id):
@@ -1178,7 +1358,7 @@ def generate_atelier_pdf(data):
             Paragraph(f"<b>{data['vehicle_count']}</b>", card_value_style),
             Paragraph(f"<b>{data['total_trips']}</b>", card_value_style),
             Paragraph(f"<b>{data['total_km_work']}</b>", card_value_style),
-            Paragraph(f"<b>{data['working_hours']}</b>", card_value_style)
+            Paragraph(f"<b>{format_hours(data['working_hours'])}</b>", card_value_style)
         ]
     ]
     
@@ -1217,10 +1397,10 @@ def generate_atelier_pdf(data):
             f"{v['name']}\n({v['id']})",
             trips_display,
             v['km'],
-            v['working_hours'],
+            format_hours(v['working_hours']),
             v.get('km_out_of_range', 0),
             v.get('attente_count', 0),
-            f"{v.get('duration_attente', 0)} h"
+            format_hours(v.get('duration_attente', 0))
         ])
     
     # Adjust column widths for better fit
@@ -1333,7 +1513,7 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
     story = []
     
     # Professional Header Bar
-    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN']]
+    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN (TOUS LES ENGINS)']]
     header_table = Table(header_data, colWidths=[landscape(A4)[0] - 20*mm])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
@@ -1801,6 +1981,14 @@ def download_vehicle_list_pdf():
         return jsonify({'error': str(e)}), 400
 
 
+def format_hours(decimal_hours):
+    """Convert decimal hours (e.g. 6.63) to Xh YYmin format (e.g. 6h 38min)."""
+    hours = int(decimal_hours)
+    minutes = int(round((decimal_hours - hours) * 60))
+    if hours == 0 and minutes == 0:
+        return "0h 00min"
+    return f"{hours}h {minutes:02d}min"
+
 def generate_project_atelier_daily_pdf(data):
     """Generate professional daily activity PDF for project/atelier."""
     from reportlab.lib.pagesizes import A4, landscape
@@ -1903,7 +2091,7 @@ def generate_project_atelier_daily_pdf(data):
     story = []
     
     # Header
-    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN PAR ATELIER']]
+    header_data = [['RAPPORT D\'ACTIVITÉ QUOTIDIEN (TOUS LES ENGINS)']]
     header_table = Table(header_data, colWidths=[landscape(A4)[0] - 30*mm])
     header_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), HEADER_BG),
@@ -1931,7 +2119,7 @@ def generate_project_atelier_daily_pdf(data):
     # Summary Box
     summary_data = [[
         Paragraph(f"<b>{data['vehicle_count']}</b> Engins", subtitle_style),
-        Paragraph(f"<b>{data['total_working_hours']} h</b> Heures Travaillées", subtitle_style),
+        Paragraph(f"<b>{format_hours(data['total_working_hours'])}</b> Heures Travaillées", subtitle_style),
         Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
     ]]
     summary_table = Table(summary_data, colWidths=[(landscape(A4)[0] - 30*mm) / 3] * 3)
@@ -1977,7 +2165,7 @@ def generate_project_atelier_daily_pdf(data):
                     v['id'],
                     v.get('matricule', '-'),
                     f"{v['km_before']}",
-                    f"{v['working_hours_before']} h",
+                    format_hours(v['working_hours_before']),
                     f"{v['km_after']}",
                     f"{v['total_km']}",
                     display_cycles
@@ -1988,7 +2176,7 @@ def generate_project_atelier_daily_pdf(data):
                 Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
                 '',
                 Paragraph(f"<b>{atelier['total_km_before']}</b>", total_table_style),
-                Paragraph(f"<b>{atelier['total_working_hours_before']} h</b>", total_table_style),
+                Paragraph(f"<b>{format_hours(atelier['total_working_hours_before'])}</b>", total_table_style),
                 Paragraph(f"<b>{atelier['total_km_after']}</b>", total_table_style),
                 Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
                 Paragraph(f"<b>{atelier['total_cycles']}</b>", total_table_style)
@@ -2145,7 +2333,7 @@ def generate_global_daily_pdf(data):
         [Paragraph(f"<b>Date:</b> {date_str}", subtitle_style), '', ''],
         [
             Paragraph(f"<b>{data['total_active_vehicles']}</b> Engins", subtitle_style),
-            Paragraph(f"<b>{data['total_working_hours']} h</b> Heures Travaillées", subtitle_style),
+            Paragraph(f"<b>{format_hours(data['total_working_hours'])}</b> Heures Travaillées", subtitle_style),
             Paragraph(f"<b>{data['total_km']} km</b> Distance Totale", subtitle_style)
         ]
     ]
@@ -2205,7 +2393,7 @@ def generate_global_daily_pdf(data):
                         v['id'],
                         v.get('matricule', '-'),
                         f"{v['km_before']}",
-                        f"{v['working_hours_before']} h",
+                        format_hours(v['working_hours_before']),
                         f"{v['km_after']}",
                         f"{v['total_km']}",
                         display_cycles
@@ -2216,7 +2404,7 @@ def generate_global_daily_pdf(data):
                     Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
                     '',
                     Paragraph(f"<b>{atelier['km_before']}</b>", total_table_style),
-                    Paragraph(f"<b>{atelier['working_hours_before']} h</b>", total_table_style),
+                    Paragraph(f"<b>{format_hours(atelier['working_hours_before'])}</b>", total_table_style),
                     Paragraph(f"<b>{atelier['km_after']}</b>", total_table_style),
                     Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
                     Paragraph(f"<b>{atelier['cycles']}</b>", total_table_style)

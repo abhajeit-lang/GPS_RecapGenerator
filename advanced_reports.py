@@ -67,6 +67,7 @@ def get_date_range_data(atelier_id, start_date, end_date):
             vehicles_data.append({
                 'id': v.id,
                 'name': v.name,
+                'category': v.category or 'Autre',
                 'movement_type': v.movement_type or 'Move',
                 'trips': v_trips,
                 'attente_count': v_attente_count,
