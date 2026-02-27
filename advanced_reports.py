@@ -57,6 +57,8 @@ def get_date_range_data(atelier_id, start_date, end_date):
             v_km_out_of_range = sum(a.km_out_of_range for a in v_activities)
             v_km_in_range = v_km_total - v_km_out_of_range
             
+            v_total_km = v_km_total # Total including out of range
+            
             v_attente_count = sum(a.attente_count for a in v_activities)
             v_course = sum(a.duration_course for a in v_activities)
             v_attente = sum(a.duration_attente for a in v_activities)
@@ -73,6 +75,7 @@ def get_date_range_data(atelier_id, start_date, end_date):
                 'attente_count': v_attente_count,
                 'duration_attente': round(v_attente, 2),
                 'km': round(v_km_in_range, 2),
+                'total_km': round(v_total_km, 2),
                 'km_out_of_range': round(v_km_out_of_range, 2),
                 'working_hours': round(v_working, 2),
                 'efficiency': round((v_working / v_total * 100) if v_total > 0 else 0, 1),

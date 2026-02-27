@@ -1023,6 +1023,7 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         
         v_ids = [v['id'] for v in vehicles]
         v_hours = [v['working_hours'] for v in vehicles]
+        v_km = [v.get('total_km', 0) for v in vehicles]
         v_cats = [v.get('category', 'Autre').upper() for v in vehicles]
         bar_colors = [CATEGORY_COLORS.get(cat, DEFAULT_COLOR) for cat in v_cats]
         
@@ -1031,6 +1032,12 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         fig, ax = plt.subplots(figsize=(fig_width, 4.5))
         
         bars = ax.bar(range(len(v_ids)), v_hours, color=bar_colors, edgecolor='white', linewidth=0.5, width=0.75)
+        
+        # Secondary Y-axis for KM
+        ax2 = ax.twinx()
+        km_line, = ax2.plot(range(len(v_ids)), v_km, color='#dc2626', marker='o', linestyle='-', linewidth=1, markersize=3, label='KM Total', alpha=0.8)
+        ax2.set_ylabel('Distance (KM)', fontsize=9, fontweight='bold', color='#dc2626')
+        ax2.tick_params(axis='y', labelcolor='#dc2626', labelsize=7)
         
         # Add value labels on top of bars
         for bar, h in zip(bars, v_hours):
@@ -1048,21 +1055,27 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         ax.set_xticks(range(len(v_ids)))
         ax.set_xticklabels(v_ids, rotation=45, ha='right', fontsize=6)
         ax.set_ylim(0, max(v_hours) * 1.3 if v_hours else 1)
+        ax2.set_ylim(0, max(v_km) * 1.3 if v_km else 1)
         
         # Style
         ax.spines['top'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax2.spines['left'].set_visible(False)
         ax.spines['left'].set_color('#cbd5e1')
+        ax2.spines['right'].set_color('#cbd5e1')
         ax.spines['bottom'].set_color('#cbd5e1')
         ax.tick_params(colors='#64748b', labelsize=7)
         ax.yaxis.grid(True, alpha=0.3, color='#cbd5e1')
         ax.set_axisbelow(True)
         
-        # Color legend for categories
+        # Color legend for categories + KM
         unique_cats = sorted(set(v_cats))
-        legend_patches = [Patch(facecolor=CATEGORY_COLORS.get(cat, DEFAULT_COLOR), label=cat) for cat in unique_cats]
-        ax.legend(handles=legend_patches, loc='upper right', fontsize=7, framealpha=0.9,
-                 edgecolor='#e2e8f0', fancybox=True, ncol=min(len(unique_cats), 4))
+        legend_elements = [Patch(facecolor=CATEGORY_COLORS.get(cat, DEFAULT_COLOR), label=cat) for cat in unique_cats]
+        legend_elements.append(km_line)
+        
+        ax.legend(handles=legend_elements, loc='upper right', fontsize=7, framealpha=0.9,
+                 edgecolor='#e2e8f0', fancybox=True, ncol=min(len(legend_elements), 5))
         
         plt.tight_layout()
         
