@@ -1010,10 +1010,11 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
     # For each atelier, generate ONE chart with ALL vehicle types color-coded
     for atelier_data in results:
         atelier_name = atelier_data.get('atelier_name', 'N/A')
+        project_name_data = atelier_data.get('project_name', 'N/A')
         vehicles = atelier_data.get('vehicles', [])
         
         if not vehicles:
-            story.append(Paragraph(f"<b>ATELIER: {atelier_name}</b> — Aucune donnée", section_style))
+            story.append(Paragraph(f"<b>PROJET: {project_name_data} - ATELIER: {atelier_name}</b> — Aucune donnée", section_style))
             story.append(Spacer(1, 5*mm))
             continue
         
@@ -1042,7 +1043,7 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         
         ax.set_xlabel('Code Engin', fontsize=9, fontweight='bold', color='#475569')
         ax.set_ylabel('Heures', fontsize=9, fontweight='bold', color='#475569')
-        ax.set_title(f'ATELIER: {atelier_name}', fontsize=13, fontweight='bold', color='#0369a1', pad=12)
+        ax.set_title(f'PROJET: {project_name_data} - ATELIER: {atelier_name}', fontsize=13, fontweight='bold', color='#0369a1', pad=12)
         
         ax.set_xticks(range(len(v_ids)))
         ax.set_xticklabels(v_ids, rotation=45, ha='right', fontsize=6)

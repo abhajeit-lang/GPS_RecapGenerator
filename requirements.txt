@@ -3,3 +3,4 @@ openpyxl
 flask
 flask-sqlalchemy
 reportlab
+matplotlib
