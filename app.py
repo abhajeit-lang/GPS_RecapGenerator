@@ -17,6 +17,12 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 import io
 import json
 
+def check_future_date(date_obj):
+    """Check if a date is in the future."""
+    if date_obj > datetime.now().date():
+        return True
+    return False
+
 def load_settings():
     try:
         settings_path = Path(__file__).parent / 'settings.json'
@@ -265,10 +271,9 @@ def report_by_date():
         date_str = data.get('date')
         format_type = data.get('format', 'csv').lower()  # 'csv' or 'pdf'
         
-        if not date_str:
-            return jsonify({'error': 'Date is required'}), 400
-        
         target_date = datetime.fromisoformat(date_str).date()
+        if check_future_date(target_date):
+            return jsonify({'error': 'La date ne peut pas être dans le futur (aujourd\'hui est le ' + datetime.now().strftime('%d/%m/%Y') + ')'}), 400
         
         # Query database for this date
         records = VehicleActivity.query.filter_by(date=target_date).all()
@@ -320,6 +325,11 @@ def report_by_month():
         if not year or not month:
             return jsonify({'error': 'Year and month are required'}), 400
         
+        # Check if month/year is in the future
+        current_date = datetime.now()
+        if year > current_date.year or (year == current_date.year and month > current_date.month):
+            return jsonify({'error': 'Le mois sélectionné est dans le futur.'}), 400
+
         # Query database for this month
         records = VehicleActivity.query.filter(
             db.func.strftime('%Y', VehicleActivity.date) == str(year).zfill(4),
@@ -411,6 +421,9 @@ def report_by_week():
         week_start_str = week_start.strftime('%Y-%m-%d')
         week_end_str = week_end.strftime('%Y-%m-%d')
         
+        if check_future_date(week_start.date()):
+            return jsonify({'error': 'La semaine sélectionnée est dans le futur.'}), 400
+
         # Query database for this week
         records = VehicleActivity.query.filter(
             VehicleActivity.date >= week_start_str,
@@ -889,6 +902,9 @@ def comparative_report():
         start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
         end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
         
+        if check_future_date(start_date) or check_future_date(end_date):
+            return jsonify({'error': 'Les dates ne peuvent pas être dans le futur.'}), 400
+
         if not atelier_ids:
             return jsonify({'error': 'At least one atelier required'}), 400
         
@@ -912,6 +928,9 @@ def comparative_report_pdf():
         start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
         end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
         
+        if check_future_date(start_date) or check_future_date(end_date):
+            return jsonify({'error': 'Les dates ne peuvent pas être dans le futur.'}), 400
+
         # If project_id is provided, get all ateliers for that project
         project_name = None
         if project_id:
@@ -1105,6 +1124,9 @@ def atelier_performance(atelier_id):
         start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
         end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
         
+        if check_future_date(start_date) or check_future_date(end_date):
+            return jsonify({'error': 'Les dates ne peuvent pas être dans le futur.'}), 400
+        
         result = generate_atelier_performance_report(atelier_id, start_date, end_date)
         
         if not result:
@@ -1126,6 +1148,9 @@ def atelier_performance_pdf(atelier_id):
         data = request.json
         start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
         end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+        
+        if check_future_date(start_date) or check_future_date(end_date):
+            return jsonify({'error': 'Les dates ne peuvent pas être dans le futur.'}), 400
         
         result = generate_atelier_performance_report(atelier_id, start_date, end_date)
         
@@ -1160,6 +1185,9 @@ def project_atelier_daily_pdf():
             
         target_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
         
+        if check_future_date(target_date):
+            return jsonify({'error': 'La date ne peut pas être dans le futur.'}), 400
+
         result = generate_project_atelier_daily_report(project_id, atelier_id, target_date)
         
         if not result:
@@ -1188,6 +1216,9 @@ def global_daily_pdf():
         data = request.json
         target_date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
         
+        if check_future_date(target_date):
+            return jsonify({'error': 'La date ne peut pas être dans le futur.'}), 400
+
         result = generate_global_daily_report(target_date)
         
         if not result['projects']:
@@ -1471,6 +1502,10 @@ def project_overview(project_id):
         data = request.json
         start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
         end_date = datetime.strptime(data.get('end_date'), '%Y-%m-%d').date()
+
+        # Check for future dates
+        if check_future_date(start_date) or check_future_date(end_date):
+            return jsonify({'error': 'Les dates ne peuvent pas être dans le futur'}), 400
         
         result = generate_project_overview(project_id, start_date, end_date)
         

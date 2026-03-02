@@ -717,6 +717,49 @@
     <script>
         let currentFilename = '';
 
+        function isFutureDate(dateStr) {
+            if (!dateStr) return false;
+
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            // Handle month format YYYY-MM
+            if (dateStr.length === 7 && dateStr.includes('-')) {
+                const [y, m] = dateStr.split('-');
+                // lastDayOfMonth is the last day of the selected month
+                const lastDayOfMonth = new Date(parseInt(y), parseInt(m), 0);
+                return lastDayOfMonth > today;
+            }
+
+            // Handle week format YYYY-Www
+            if (dateStr.includes('-W')) {
+                const [y, w] = dateStr.split('-W');
+                const selectedYear = parseInt(y);
+                const selectedWeek = parseInt(w);
+
+                const currentYear = now.getFullYear();
+                if (selectedYear > currentYear) return true;
+                if (selectedYear < currentYear) return false;
+
+                // Get current week number (ISO)
+                const target = new Date(now.valueOf());
+                const dayNr = (now.getDay() + 6) % 7;
+                target.setDate(target.getDate() - dayNr + 3);
+                const firstThursday = target.valueOf();
+                target.setMonth(0, 1);
+                if (target.getDay() !== 4) {
+                    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+                }
+                const currentWeek = 1 + Math.ceil((firstThursday - target) / 604800000);
+                return selectedWeek > currentWeek;
+            }
+
+            // For YYYY-MM-DD
+            const [y, m, d] = dateStr.split('-').map(v => parseInt(v));
+            const selectedDate = new Date(y, m - 1, d);
+            return selectedDate > today;
+        }
+
         function switchTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -1573,6 +1616,11 @@
                 return;
             }
 
+            if (isFutureDate(date)) {
+                showQueryMessage('La date ne peut pas être dans le futur.', 'error');
+                return;
+            }
+
             showQueryLoading(true);
             hideQueryMessage();
             document.getElementById('queryDownloadSection').style.display = 'none';
@@ -1653,6 +1701,11 @@
                 return;
             }
 
+            if (isFutureDate(month)) {
+                showQueryMessage('Le mois ne peut pas être dans le futur.', 'error');
+                return;
+            }
+
             const [year, monthNum] = month.split('-');
 
             showQueryLoading(true);
@@ -1686,6 +1739,11 @@
 
             if (!week) {
                 showQueryMessage('Veuillez sélectionner une semaine', 'error');
+                return;
+            }
+
+            if (isFutureDate(week)) {
+                showQueryMessage('La semaine ne peut pas être dans le futur.', 'error');
                 return;
             }
 
@@ -1804,6 +1862,11 @@
                 return;
             }
 
+            if (isFutureDate(startDate) || isFutureDate(endDate)) {
+                alert('Les dates ne peuvent pas être dans le futur.');
+                return;
+            }
+
             if (atelierIds.length === 0) {
                 alert('Sélectionnez au moins un atelier.');
                 return;
@@ -1846,6 +1909,11 @@
 
             if (!startDate || !endDate) {
                 alert('Veuillez sélectionner les dates de début et fin.');
+                return;
+            }
+
+            if (isFutureDate(startDate) || isFutureDate(endDate)) {
+                alert('Les dates ne peuvent pas être dans le futur.');
                 return;
             }
 
@@ -1946,6 +2014,11 @@
 
             if (!startDate || !endDate) {
                 alert('Veuillez sélectionner les dates de début et fin.');
+                return;
+            }
+
+            if (isFutureDate(startDate) || isFutureDate(endDate)) {
+                alert('Les dates ne peuvent pas être dans le futur.');
                 return;
             }
 
@@ -2105,6 +2178,11 @@
                 return;
             }
 
+            if (isFutureDate(date)) {
+                alert('La date ne peut pas être dans le futur.');
+                return;
+            }
+
             fetch('/reports/project-atelier-daily/pdf', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2144,6 +2222,11 @@
 
             if (!date) {
                 alert('Veuillez sélectionner une date.');
+                return;
+            }
+
+            if (isFutureDate(date)) {
+                alert('La date ne peut pas être dans le futur.');
                 return;
             }
 
