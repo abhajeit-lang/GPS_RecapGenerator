@@ -2323,7 +2323,7 @@
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Trajets</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Dist. Moy/Trajet</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Heures Travail (GPS)</th>
-                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Heures Réelles (Agent)</th>
+                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">H. Réelles Déclarer</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Écart (h)</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Efficacité %</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Utilisation %</th>
@@ -2334,18 +2334,18 @@
                 const rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1);
                 const rowBg = idx % 2 === 0 ? '#f8f9fa' : 'white';
 
-                const discrepancyColor = Math.abs(r.discrepancy) > 1.0 ? '#dc3545' : '#28a745';
+                const discColor = r.discrepancy > 0.01 ? '#28a745' : r.discrepancy < -0.01 ? '#dc3545' : '#6c757d';
 
                 html += `<tr style="background: ${rowBg};">
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-size: 18px;">${rankIcon}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.atelier_name}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd;">${r.project_name}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.vehicle_count}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.total_trips}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.avg_trip_distance} km</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.working_hours} h</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${r.real_hours} h</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${discrepancyColor};">${r.discrepancy} h</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-size: 18px;">${rankIcon}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.atelier_name}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${r.project_name}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.vehicle_count}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.total_trips}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.avg_trip_distance} km</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.working_hours} h</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${r.real_hours} h</td>
+                        <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${discColor};">${r.discrepancy} h</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${r.efficiency_rate >= 80 ? '#28a745' : r.efficiency_rate >= 60 ? '#ffc107' : '#dc3545'};">${r.efficiency_rate}%</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.utilization_rate}%</td>
                 </tr>`;

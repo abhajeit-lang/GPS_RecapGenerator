@@ -1041,16 +1041,29 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         vehicles.sort(key=lambda x: x['working_hours'], reverse=True)
         
         v_ids = [v['id'] for v in vehicles]
-        v_hours = [v['working_hours'] for v in vehicles]
+        v_hours_gps = [v['working_hours'] for v in vehicles]
+        v_hours_real = [v.get('real_hours', 0) for v in vehicles]
         v_km = [v.get('total_km', 0) for v in vehicles]
         v_cats = [v.get('category', 'Autre').upper() for v in vehicles]
-        bar_colors = [CATEGORY_COLORS.get(cat, DEFAULT_COLOR) for cat in v_cats]
+        
+        # Color for GPS bars: based on category
+        bar_colors_gps = [CATEGORY_COLORS.get(cat, DEFAULT_COLOR) for cat in v_cats]
+        # Color for Real bars: slightly desaturated or different shade of the same category color?
+        # Let's use a consistent "Agent" color or a lighter version. 
+        # For simplicity and clarity, let's use a specific "Real Hours" color: #94a3b8 (grayish) or #cbd5e1
+        REAL_BAR_COLOR = '#94a3b8'
         
         # Create ONE chart with all vehicles
-        fig_width = max(10, len(v_ids) * 0.55)
+        fig_width = max(10, len(v_ids) * 0.6) 
         fig, ax = plt.subplots(figsize=(fig_width, 4.5))
         
-        bars = ax.bar(range(len(v_ids)), v_hours, color=bar_colors, edgecolor='white', linewidth=0.5, width=0.75)
+        x = range(len(v_ids))
+        
+        # GPS Hours as bars
+        bars_gps = ax.bar(x, v_hours_gps, color=bar_colors_gps, label='H. GPS', edgecolor='white', linewidth=0.5, width=0.7)
+        
+        # Real Hours as a LINE
+        line_real, = ax.plot(x, v_hours_real, color='#475569', marker='D', markersize=4, linestyle='--', linewidth=1.5, label='H. Réelles Déclarer', alpha=0.9)
         
         # Secondary Y-axis for KM
         ax2 = ax.twinx()
@@ -1058,23 +1071,32 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         ax2.set_ylabel('Distance (KM)', fontsize=9, fontweight='bold', color='#dc2626')
         ax2.tick_params(axis='y', labelcolor='#dc2626', labelsize=7)
         
-        # Add value labels on top of bars
-        for bar, h in zip(bars, v_hours):
+        # Add value labels
+        for bar, h in zip(bars_gps, v_hours_gps):
             if h > 0:
                 hrs = int(h)
                 mins = int(round((h - hrs) * 60))
-                label = f"{hrs}h{mins:02d}" if hrs > 0 else f"{mins}min"
-                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.08,
-                       label, ha='center', va='bottom', fontsize=6, fontweight='bold', color='#334155')
+                label = f"{hrs}h{mins:02d}"
+                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.15,
+                       label, ha='center', va='bottom', fontsize=5.5, fontweight='bold', color='#1e293b')
+                       
+        for i, h in enumerate(v_hours_real):
+            if h > 0:
+                hrs = int(h)
+                mins = int(round((h - hrs) * 60))
+                label = f"{hrs}h{mins:02d}"
+                # Position Real labels below the line markers
+                ax.text(i, h - 0.15, label, ha='center', va='top', fontsize=5.5, fontweight='bold', color='#475569')
         
         ax.set_xlabel('Code Engin', fontsize=9, fontweight='bold', color='#475569')
         ax.set_ylabel('Heures', fontsize=9, fontweight='bold', color='#475569')
         ax.set_title(f'PROJET: {project_name_data} - ATELIER: {atelier_name}', fontsize=13, fontweight='bold', color='#0369a1', pad=12)
         
-        ax.set_xticks(range(len(v_ids)))
-        ax.set_xticklabels(v_ids, rotation=45, ha='right', fontsize=6)
-        ax.set_ylim(0, max(v_hours) * 1.3 if v_hours else 1)
-        ax2.set_ylim(0, max(v_km) * 1.3 if v_km else 1)
+        ax.set_xticks(x)
+        ax.set_xticklabels(v_ids, rotation=45, ha='right', fontsize=7)
+        max_h = max(max(v_hours_gps if v_hours_gps else [0]), max(v_hours_real if v_hours_real else [0]))
+        ax.set_ylim(0, max_h * 1.3 if max_h > 0 else 10)
+        ax2.set_ylim(0, max(v_km) * 1.3 if v_km and max(v_km) > 0 else 10)
         
         # Style
         ax.spines['top'].set_visible(False)
@@ -1088,13 +1110,15 @@ def generate_comparative_pdf(results, start_date, end_date, project_name=None):
         ax.yaxis.grid(True, alpha=0.3, color='#cbd5e1')
         ax.set_axisbelow(True)
         
-        # Color legend for categories + KM
+        # Color legend for categories + GPS + Real + KM
         unique_cats = sorted(set(v_cats))
+        # Add category indicator but keep it concise
         legend_elements = [Patch(facecolor=CATEGORY_COLORS.get(cat, DEFAULT_COLOR), label=cat) for cat in unique_cats]
+        legend_elements.append(line_real)
         legend_elements.append(km_line)
         
         ax.legend(handles=legend_elements, loc='upper right', fontsize=7, framealpha=0.9,
-                 edgecolor='#e2e8f0', fancybox=True, ncol=min(len(legend_elements), 5))
+                 edgecolor='#e2e8f0', fancybox=True, ncol=2)
         
         plt.tight_layout()
         
@@ -1431,7 +1455,7 @@ def generate_atelier_pdf(data):
     story.append(Paragraph('DÉTAILS DES ENGINS', section_title_style))
     story.append(Spacer(1, 2*mm))
     
-    table_headers = ['Engin', 'Cycles', 'KM Travaillé', 'Hrs Travaillé', 'KM Hors Travail', "Nbr d'attente", "Durée d'attente"]
+    table_headers = ['Engin', 'Cycles', 'KM Travaillé', 'Hrs Travail (GPS)', 'H. Réelles Déclarer', 'Écart (h)', 'KM Hors Travail', "Durée d'attente"]
     table_data = [table_headers]
     
     for v in data['vehicles']:
@@ -1443,21 +1467,23 @@ def generate_atelier_pdf(data):
             trips_display,
             v['km'],
             format_hours(v['working_hours']),
+            format_hours(v.get('real_hours', 0)),
+            format_hours(v.get('discrepancy', 0)),
             v.get('km_out_of_range', 0),
-            v.get('attente_count', 0),
             format_hours(v.get('duration_attente', 0))
         ])
     
     # Adjust column widths for better fit
     total_width = landscape(A4)[0] - 30*mm
     vehicle_table = Table(table_data, colWidths=[
-        total_width * 0.22,  # Engin
-        total_width * 0.10,  # Cycles
-        total_width * 0.14,  # KM Travaillé
-        total_width * 0.14,  # Hrs
-        total_width * 0.16,  # KM Hors
-        total_width * 0.12,  # Nb Attente
-        total_width * 0.12   # Durée
+        total_width * 0.18,  # Engin
+        total_width * 0.08,  # Cycles
+        total_width * 0.12,  # KM Travaillé
+        total_width * 0.14,  # Hrs GPS
+        total_width * 0.14,  # Hrs Real
+        total_width * 0.12,  # Écart
+        total_width * 0.12,  # KM Hors
+        total_width * 0.10   # Durée
     ])
     
     vehicle_table.setStyle(TableStyle([
