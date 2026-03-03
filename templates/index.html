@@ -255,6 +255,7 @@
             <button class="tab-btn" onclick="switchTab('hierarchy')">🏗️ Projets & Ateliers</button>
             <button class="tab-btn" onclick="switchTab('advanced-reports')">📊 Rapports Avancés</button>
             <button class="tab-btn" onclick="switchTab('upload')">📤 Télécharger les Données</button>
+            <button class="tab-btn" onclick="switchTab('real-data')">⏱️ Données Réelles</button>
             <button class="tab-btn" onclick="switchTab('query')">📊 Consulter les Rapports</button>
         </div>
 
@@ -327,6 +328,65 @@
                     <p style="color:#999;">Chargement des véhicules...</p>
                 </div>
             </div>
+        </div>
+
+        <!-- Real Data Tab -->
+        <div id="real-data" class="tab-content">
+            <h3 style="color:#333; margin-bottom:20px;">⏱️ Saisie des Heures Réelles (Pointage Agent)</h3>
+
+            <div
+                style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 15px; margin-bottom: 25px; align-items: end;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="realDataDate">Sélectionner la Date</label>
+                    <input type="date" id="realDataDate">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label for="realDataAtelier">Choisir un Atelier</label>
+                    <select id="realDataAtelier"
+                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                        <option value="">-- Sélectionner --</option>
+                    </select>
+                </div>
+                <button onclick="loadRealWorkData()" style="padding: 10px 20px;">🔍 Afficher / Initialiser</button>
+            </div>
+
+            <div id="realDataContainer" style="display:none;">
+                <div style="overflow-x: auto; margin-bottom: 20px;">
+                    <table
+                        style="width:100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <thead>
+                            <tr style="background: #667eea; color: white;">
+                                <th style="padding: 12px; text-align: left;">Code Engin</th>
+                                <th style="padding: 12px; text-align: left;">Nom</th>
+                                <th style="padding: 12px; text-align: center;">Heures Réelles (Agent)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="realDataTableBody">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <button onclick="saveRealWorkData()" style="background: #28a745; width: 100%; margin-bottom: 30px;">💾
+                    Enregistrer le Pointage</button>
+            </div>
+
+            <hr style="margin: 30px 0; border:none; border-top:1px solid #ddd;">
+
+            <h3 style="color:#333; margin-bottom:20px;">📤 Importation en Masse</h3>
+            <div class="form-group">
+                <label>Importer un fichier Excel/CSV (Colonnes: ID_Engin, Heures_Réelles)</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="file" id="realDataFile" accept=".xlsx,.xls,.csv" style="flex:1;">
+                    <button onclick="importRealWorkData()" style="padding: 10px 20px; background: #6610f2;">📤
+                        Importer</button>
+                </div>
+            </div>
+
+            <div class="loading" id="realDataLoading">
+                <div class="spinner"></div>
+                <p>Action en cours...</p>
+            </div>
+            <div class="message" id="realDataMessage"></div>
         </div>
 
         <!-- Hierarchy Management Tab -->
@@ -799,6 +859,21 @@
                     renderAteliersList();
                     updateProjectSelect();
                     updateAtelierSelectForAssign();
+
+                    // Also populate the Real Data atelier select
+                    const realDataAtelierSelect = document.getElementById('realDataAtelier');
+                    const currentRealAtelier = realDataAtelierSelect.value;
+                    realDataAtelierSelect.innerHTML = '<option value="">-- Sélectionner --</option>';
+
+                    data.projects.forEach(p => {
+                        p.ateliers.forEach(a => {
+                            const opt = document.createElement('option');
+                            opt.value = a.id;
+                            opt.textContent = `${p.name} - ${a.name}`;
+                            realDataAtelierSelect.appendChild(opt);
+                        });
+                    });
+                    realDataAtelierSelect.value = currentRealAtelier;
                 });
         }
 
@@ -1192,6 +1267,24 @@
                     setTimeout(() => {
                         const select = document.getElementById('atelierSelectForAssign');
                         if (select.value) {
+                            // Also populate the Real Data atelier select
+                            const realDataAtelierSelect = document.getElementById('realDataAtelier');
+                            const currentRealAtelier = realDataAtelierSelect.value;
+                            realDataAtelierSelect.innerHTML = '<option value="">-- Sélectionner --</option>';
+
+                            // Assuming hierarchyData is updated by loadHierarchy() and contains the necessary atelier data
+                            // We need to iterate through projects to get all ateliers
+                            if (hierarchyData && hierarchyData.projects) {
+                                hierarchyData.projects.forEach(p => {
+                                    p.ateliers.forEach(a => {
+                                        const opt = document.createElement('option');
+                                        opt.value = a.id;
+                                        opt.textContent = a.name;
+                                        realDataAtelierSelect.appendChild(opt);
+                                    });
+                                });
+                            }
+                            realDataAtelierSelect.value = currentRealAtelier;
                             loadEnginsForAtelier();
                         }
                     }, 500);
@@ -1607,6 +1700,149 @@
         });
 
         // Query Handlers
+        // Real Work Data Handlers
+        function loadRealWorkData() {
+            const date = document.getElementById('realDataDate').value;
+            const atelierId = document.getElementById('realDataAtelier').value;
+
+            if (!date || !atelierId) {
+                showRealDataMessage('Veuillez sélectionner une date et un atelier.', 'error');
+                return;
+            }
+
+            if (isFutureDate(date)) {
+                showRealDataMessage('La date ne peut pas être dans le futur.', 'error');
+                return;
+            }
+
+            showRealDataLoading(true);
+            hideRealDataMessage();
+
+            fetch(`/real-work-data?date=${date}&atelier_id=${atelierId}`)
+                .then(r => r.json())
+                .then(data => {
+                    showRealDataLoading(false);
+                    if (data.success) {
+                        const tbody = document.getElementById('realDataTableBody');
+                        tbody.innerHTML = '';
+                        data.data.forEach(item => {
+                            const row = document.createElement('tr');
+                            row.style.borderBottom = '1px solid #eee';
+                            row.innerHTML = `
+                                <td style="padding: 12px;">${item.vehicle_id}</td>
+                                <td style="padding: 12px;">${item.vehicle_name} <br><small style="color:#666">${item.matricule}</small></td>
+                                <td style="padding: 12px; text-align: center;">
+                                    <input type="number" step="0.5" class="real-hours-input" 
+                                           data-id="${item.vehicle_id}" value="${item.hours_real}" 
+                                           style="width: 80px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; text-align: center;">
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                        document.getElementById('realDataContainer').style.display = 'block';
+                    } else {
+                        showRealDataMessage('Erreur: ' + data.error, 'error');
+                    }
+                })
+                .catch(err => {
+                    showRealDataLoading(false);
+                    showRealDataMessage('Erreur: ' + err.message, 'error');
+                });
+        }
+
+        function saveRealWorkData() {
+            const date = document.getElementById('realDataDate').value;
+            const inputs = document.querySelectorAll('.real-hours-input');
+            const data = [];
+
+            inputs.forEach(input => {
+                data.push({
+                    vehicle_id: input.getAttribute('data-id'),
+                    hours_real: parseFloat(input.value) || 0
+                });
+            });
+
+            showRealDataLoading(true);
+
+            fetch('/real-work-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: date, data: data })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    showRealDataLoading(false);
+                    if (data.success) {
+                        showRealDataMessage(data.message, 'success');
+                    } else {
+                        showRealDataMessage('Erreur: ' + data.error, 'error');
+                    }
+                })
+                .catch(err => {
+                    showRealDataLoading(false);
+                    showRealDataMessage('Erreur: ' + err.message, 'error');
+                });
+        }
+
+        async function importRealWorkData() {
+            const fileInput = document.getElementById('realDataFile');
+            const date = document.getElementById('realDataDate').value;
+            const file = fileInput.files[0];
+
+            if (!file || !date) {
+                showRealDataMessage('Veuillez sélectionner un fichier et une date.', 'error');
+                return;
+            }
+
+            if (isFutureDate(date)) {
+                showRealDataMessage('La date ne peut pas être dans le futur.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('date', date);
+
+            showRealDataLoading(true);
+
+            try {
+                const response = await fetch('/real-work-data/import', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showRealDataLoading(false);
+
+                if (response.ok) {
+                    showRealDataMessage(data.message, 'success');
+                    fileInput.value = '';
+                    // Reload if an atelier was selected
+                    const atelierId = document.getElementById('realDataAtelier').value;
+                    if (atelierId) loadRealWorkData();
+                } else {
+                    showRealDataMessage('Erreur: ' + data.error, 'error');
+                }
+            } catch (err) {
+                showRealDataLoading(false);
+                showRealDataMessage('Erreur: ' + err.message, 'error');
+            }
+        }
+
+        function showRealDataLoading(show) {
+            document.getElementById('realDataLoading').style.display = show ? 'block' : 'none';
+        }
+
+        function showRealDataMessage(text, type) {
+            const msg = document.getElementById('realDataMessage');
+            msg.textContent = text;
+            msg.className = 'message ' + type;
+            msg.style.display = 'block';
+        }
+
+        function hideRealDataMessage() {
+            document.getElementById('realDataMessage').style.display = 'none';
+        }
+
         function generateByDate() {
             const date = document.getElementById('dateInput').value;
             const format = document.getElementById('reportFormat').value;
@@ -2086,7 +2322,9 @@
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Véhicules</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Trajets</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Dist. Moy/Trajet</th>
-                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Heures Travail</th>
+                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Heures Travail (GPS)</th>
+                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Heures Réelles (Agent)</th>
+                    <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Écart (h)</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Efficacité %</th>
                     <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Utilisation %</th>
                 </tr>
@@ -2096,6 +2334,8 @@
                 const rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1);
                 const rowBg = idx % 2 === 0 ? '#f8f9fa' : 'white';
 
+                const discrepancyColor = Math.abs(r.discrepancy) > 1.0 ? '#dc3545' : '#28a745';
+
                 html += `<tr style="background: ${rowBg};">
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-size: 18px;">${rankIcon}</td>
                     <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.atelier_name}</td>
@@ -2104,6 +2344,8 @@
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.total_trips}</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.avg_trip_distance} km</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.working_hours} h</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${r.real_hours} h</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${discrepancyColor};">${r.discrepancy} h</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${r.efficiency_rate >= 80 ? '#28a745' : r.efficiency_rate >= 60 ? '#ffc107' : '#dc3545'};">${r.efficiency_rate}%</td>
                     <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${r.utilization_rate}%</td>
                 </tr>`;

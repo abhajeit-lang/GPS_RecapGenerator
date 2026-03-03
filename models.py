@@ -98,3 +98,22 @@ class VehicleActivity(db.Model):
             'km_before': round(self.km_before, 3),
             'km_after': round(self.km_after, 3)
         }
+
+class RealWorkData(db.Model):
+    __tablename__ = 'real_work_data'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    vehicle_id = db.Column(db.String(50), db.ForeignKey('vehicle.id'), nullable=False)
+    hours_real = db.Column(db.Float, default=8.0)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship for easier access
+    vehicle = db.relationship('Vehicle', backref=db.backref('real_data', lazy=True))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date.isoformat(),
+            'vehicle_id': self.vehicle_id,
+            'hours_real': self.hours_real
+        }

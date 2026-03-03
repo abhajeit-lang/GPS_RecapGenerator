@@ -3,7 +3,7 @@ from pathlib import Path
 from flask import Flask, render_template, request, send_file, jsonify
 from werkzeug.utils import secure_filename
 from report_logic import load_file, process_dataframe, generate_reports, format_decimal_hours
-from models import db, VehicleActivity, Vehicle, Project, Atelier
+from models import db, VehicleActivity, Vehicle, Project, Atelier, RealWorkData
 import tempfile
 from datetime import datetime
 import pandas as pd
@@ -2032,11 +2032,18 @@ def download_vehicle_list_pdf():
 
 def format_hours(decimal_hours):
     """Convert decimal hours (e.g. 6.63) to Xh YYmin format (e.g. 6h 38min)."""
-    hours = int(decimal_hours)
-    minutes = int(round((decimal_hours - hours) * 60))
+    is_negative = decimal_hours < 0
+    abs_val = abs(decimal_hours)
+    hours = int(abs_val)
+    minutes = int(round((abs_val - hours) * 60))
+    # Handle overflow if minutes reach 60 due to rounding
+    if minutes >= 60:
+        minutes = 0
+        hours += 1
     if hours == 0 and minutes == 0:
         return "0h 00min"
-    return f"{hours}h {minutes:02d}min"
+    prefix = "-" if is_negative else ""
+    return f"{prefix}{hours}h {minutes:02d}min"
 
 def generate_project_atelier_daily_pdf(data):
     """Generate professional daily activity PDF for project/atelier."""
@@ -2196,44 +2203,16 @@ def generate_project_atelier_daily_pdf(data):
                 Paragraph('<b>Matricule</b>', table_header_style),
                 Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
                 Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
+                Paragraph('<b>H. Réelles Déclarer</b>', table_header_style),
+                Paragraph('<b>Écart (h)</b>', table_header_style),
                 Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
                 Paragraph('<b>Total KM</b>', table_header_style),
                 Paragraph('<b>Cycles</b>', table_header_style)
             ]]
             
-            for v in atelier['vehicles']:
-                cycles_val = v['cycles']
-                category = v.get('category', '').lower()
-                
-                # STRICT LOGIC: Only 'camion' shows cycles.
-                display_cycles = "N/A"
-                if category == 'camion':
-                    display_cycles = f"{cycles_val}"
-                    
-                table_data.append([
-                    v['id'],
-                    v.get('matricule', '-'),
-                    f"{v['km_before']}",
-                    format_hours(v['working_hours_before']),
-                    f"{v['km_after']}",
-                    f"{v['total_km']}",
-                    display_cycles
-                ])
-            
-            # Add atelier totals row
-            table_data.append([
-                Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
-                '',
-                Paragraph(f"<b>{atelier['total_km_before']}</b>", total_table_style),
-                Paragraph(f"<b>{format_hours(atelier['total_working_hours_before'])}</b>", total_table_style),
-                Paragraph(f"<b>{atelier['total_km_after']}</b>", total_table_style),
-                Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
-                Paragraph(f"<b>{atelier['total_cycles']}</b>", total_table_style)
-            ])
-            
-            col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
-            vehicle_table = Table(table_data, colWidths=col_widths, repeatRows=1)
-            vehicle_table.setStyle(TableStyle([
+            # For conditional coloring
+            discrepancy_col_idx = 5
+            table_styles = [
                 ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -2245,7 +2224,61 @@ def generate_project_atelier_daily_pdf(data):
                 ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e2e8f0')), # Slightly darker grey
                 ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#1e293b')),
                 ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-            ]))
+            ]
+            
+            row_idx = 1
+            for v in atelier['vehicles']:
+                cycles_val = v['cycles']
+                category = v.get('category', '').lower()
+                
+                # STRICT LOGIC: Only 'camion' shows cycles.
+                display_cycles = "N/A"
+                if category == 'camion':
+                    display_cycles = f"{cycles_val}"
+                
+                # Colors for discrepancy
+                disc_val = v['discrepancy']
+                # Soft professional colors: Green (#065f46), Red (#991b1b)
+                if disc_val > 0.01:
+                    table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#059669')))
+                elif disc_val < -0.01:
+                    table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#dc2626')))
+                    
+                table_data.append([
+                    v['id'],
+                    v.get('matricule', '-'),
+                    f"{v['km_before']}",
+                    format_hours(v['working_hours_before']),
+                    format_hours(v['real_hours']),
+                    format_hours(v['discrepancy']),
+                    f"{v['km_after']}",
+                    f"{v['total_km']}",
+                    display_cycles
+                ])
+                row_idx += 1
+            
+            # Add atelier totals row
+            atelier_disc = round(atelier['total_working_hours'] - atelier['total_real_hours'], 2)
+            if atelier_disc > 0.01:
+                table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#059669')))
+            elif atelier_disc < -0.01:
+                table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#dc2626')))
+                
+            table_data.append([
+                Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
+                '',
+                Paragraph(f"<b>{atelier['total_km_before']}</b>", total_table_style),
+                Paragraph(f"<b>{format_hours(atelier['total_working_hours_before'])}</b>", total_table_style),
+                Paragraph(f"<b>{format_hours(atelier['total_real_hours'])}</b>", total_table_style),
+                Paragraph(f"<b>{format_hours(atelier_disc)}</b>", total_table_style),
+                Paragraph(f"<b>{atelier['total_km_after']}</b>", total_table_style),
+                Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
+                Paragraph(f"<b>{atelier['total_cycles']}</b>", total_table_style)
+            ])
+            
+            col_widths = [35*mm, 35*mm, 28*mm, 32*mm, 32*mm, 32*mm, 28*mm, 25*mm, 20*mm]
+            vehicle_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+            vehicle_table.setStyle(TableStyle(table_styles))
             story.append(vehicle_table)
             story.append(Spacer(1, 5*mm))
     else:
@@ -2424,44 +2457,15 @@ def generate_global_daily_pdf(data):
                     Paragraph('<b>Matricule</b>', table_header_style),
                     Paragraph('<b>Avant 18:30 (KM)</b>', table_header_style),
                     Paragraph('<b>H. Travail (Avant 18:30)</b>', table_header_style),
+                    Paragraph('<b>H. Réelles Déclarer</b>', table_header_style),
+                    Paragraph('<b>Écart (h)</b>', table_header_style),
                     Paragraph('<b>Après 18:30 (KM)</b>', table_header_style),
                     Paragraph('<b>Total KM</b>', table_header_style),
                     Paragraph('<b>Cycles</b>', table_header_style)
                 ]]
                 
-                for v in atelier['vehicles']:
-                    cycles_val = v['cycles']
-                    category = v.get('category', '').lower()
-                    
-                    # STRICT LOGIC: Only 'camion' shows cycles.
-                    display_cycles = "N/A"
-                    if category == 'camion':
-                        display_cycles = f"{cycles_val}"
-                        
-                    table_data.append([
-                        v['id'],
-                        v.get('matricule', '-'),
-                        f"{v['km_before']}",
-                        format_hours(v['working_hours_before']),
-                        f"{v['km_after']}",
-                        f"{v['total_km']}",
-                        display_cycles
-                    ])
-                
-                # Atelier Totals Row
-                table_data.append([
-                    Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
-                    '',
-                    Paragraph(f"<b>{atelier['km_before']}</b>", total_table_style),
-                    Paragraph(f"<b>{format_hours(atelier['working_hours_before'])}</b>", total_table_style),
-                    Paragraph(f"<b>{atelier['km_after']}</b>", total_table_style),
-                    Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
-                    Paragraph(f"<b>{atelier['cycles']}</b>", total_table_style)
-                ])
-                
-                col_widths = [50*mm, 40*mm, 35*mm, 35*mm, 35*mm, 30*mm, 35*mm]
-                v_table = Table(table_data, colWidths=col_widths, repeatRows=1)
-                v_table.setStyle(TableStyle([
+                discrepancy_col_idx = 3
+                table_styles = [
                     ('BACKGROUND', (0, 0), (-1, 0), PROJECT_HEADER_BG),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -2473,7 +2477,60 @@ def generate_global_daily_pdf(data):
                     ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e2e8f0')),
                     ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#1e293b')),
                     ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-                ]))
+                ]
+                
+                row_idx = 1
+                for v in atelier['vehicles']:
+                    cycles_val = v['cycles']
+                    category = v.get('category', '').lower()
+                    
+                    # STRICT LOGIC: Only 'camion' shows cycles.
+                    display_cycles = "N/A"
+                    if category == 'camion':
+                        display_cycles = f"{cycles_val}"
+                    
+                    # Colors
+                    disc_val = v['discrepancy']
+                    if disc_val > 0.01:
+                        table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#059669')))
+                    elif disc_val < -0.01:
+                        table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#dc2626')))
+                        
+                    table_data.append([
+                        v['id'],
+                        v.get('matricule', '-'),
+                        f"{v['km_before']}",
+                        format_hours(v['working_hours_before']),
+                        format_hours(v['real_hours']),
+                        format_hours(v['discrepancy']),
+                        f"{v['km_after']}",
+                        f"{v['total_km']}",
+                        display_cycles
+                    ])
+                    row_idx += 1
+                
+                # Atelier Totals Row
+                atelier_disc = round(atelier['total_working_hours'] - atelier['real_hours'], 2)
+                if atelier_disc > 0.01:
+                    table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#059669')))
+                elif atelier_disc < -0.01:
+                    table_styles.append(('TEXTCOLOR', (discrepancy_col_idx, row_idx), (discrepancy_col_idx, row_idx), colors.HexColor('#dc2626')))
+                    
+                table_data.append([
+                    Paragraph('<b>TOTAL ATELIER</b>', total_table_style),
+                    '',
+                    Paragraph(f"<b>{atelier['km_before']}</b>", total_table_style),
+                    Paragraph(f"<b>{format_hours(atelier['working_hours_before'])}</b>", total_table_style),
+                    Paragraph(f"<b>{format_hours(atelier['real_hours'])}</b>", total_table_style),
+                    Paragraph(f"<b>{format_hours(atelier_disc)}</b>", total_table_style),
+                    Paragraph(f"<b>{atelier['km_after']}</b>", total_table_style),
+                    Paragraph(f"<b>{atelier['total_km']}</b>", total_table_style),
+                    Paragraph(f"<b>{atelier['cycles']}</b>", total_table_style)
+                ])
+                
+                col_widths = [35*mm, 35*mm, 28*mm, 32*mm, 32*mm, 32*mm, 28*mm, 25*mm, 20*mm]
+                v_table = Table(table_data, colWidths=col_widths, repeatRows=1)
+                v_table.setStyle(TableStyle(table_styles))
                 story.append(v_table)
                 story.append(Spacer(1, 5*mm))
         
@@ -2483,6 +2540,129 @@ def generate_global_daily_pdf(data):
     pdf_buffer.seek(0)
     return pdf_buffer
 
+
+@app.route('/real-work-data', methods=['GET'])
+def get_real_work_data():
+    try:
+        date_str = request.args.get('date')
+        atelier_id = request.args.get('atelier_id')
+        
+        if not date_str or not atelier_id:
+            return jsonify({'error': 'Missing date or atelier_id'}), 400
+            
+        target_date = datetime.fromisoformat(date_str).date()
+        atelier = Atelier.query.get(atelier_id)
+        if not atelier:
+            return jsonify({'error': 'Atelier not found'}), 404
+            
+        vehicles = atelier.vehicles
+        existing_data = {r.vehicle_id: r.hours_real for r in RealWorkData.query.filter_by(date=target_date).all()}
+        
+        result = []
+        for v in vehicles:
+            result.append({
+                'vehicle_id': v.id,
+                'vehicle_name': v.name,
+                'matricule': v.matricule,
+                'hours_real': existing_data.get(v.id, 8.0) # Default to 8.0
+            })
+            
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/real-work-data', methods=['POST'])
+def save_real_work_data():
+    try:
+        data = request.json
+        date_str = data.get('date')
+        entries = data.get('data', [])
+        
+        if not date_str:
+            return jsonify({'error': 'Missing date'}), 400
+            
+        target_date = datetime.fromisoformat(date_str).date()
+        
+        for entry in entries:
+            v_id = entry.get('vehicle_id')
+            hours = entry.get('hours_real', 8.0)
+            
+            # Update or create
+            record = RealWorkData.query.filter_by(date=target_date, vehicle_id=v_id).first()
+            if record:
+                record.hours_real = hours
+            else:
+                record = RealWorkData(date=target_date, vehicle_id=v_id, hours_real=hours)
+                db.session.add(record)
+                
+        db.session.commit()
+        return jsonify({'success': True, 'message': '✓ Données enregistrées avec succès'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/real-work-data/import', methods=['POST'])
+def import_real_work_data():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        date_str = request.form.get('date') # Selected date in UI
+        
+        if file.filename == '' or not date_str:
+            return jsonify({'error': 'No selected file or missing date'}), 400
+            
+        target_date = datetime.fromisoformat(date_str).date()
+        
+        # Load file
+        filename = secure_filename(file.filename)
+        filepath = Path(app.config['UPLOAD_FOLDER']) / filename
+        file.save(str(filepath))
+        
+        # Determine engine
+        if filename.endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(filepath)
+        else:
+            df = pd.read_csv(filepath)
+            
+        # Flexible column names
+        id_col = next((c for c in df.columns if any(x in c.lower() for x in ['id', 'engin', 'code'])), None)
+        hours_col = next((c for c in df.columns if any(x in c.lower() for x in ['heure', 'real', 'réel'])), None)
+        
+        if not id_col or not hours_col:
+            return jsonify({'error': 'Fichier invalide. Besoin de colonnes ID et Heures.'}), 400
+            
+        updated_count = 0
+        for _, row in df.iterrows():
+            v_id = str(row[id_col]).strip()
+            # Simple check if vehicle id exists as a string
+            if not v_id: continue
+            
+            try:
+                hours = float(row[hours_col])
+            except:
+                continue
+                
+            record = RealWorkData.query.filter_by(date=target_date, vehicle_id=v_id).first()
+            if record:
+                record.hours_real = hours
+                updated_count += 1
+            else:
+                # Only create if vehicle exists in our database
+                if Vehicle.query.get(v_id):
+                    record = RealWorkData(date=target_date, vehicle_id=v_id, hours_real=hours)
+                    db.session.add(record)
+                    updated_count += 1
+            
+        db.session.commit()
+        return jsonify({
+            'success': True, 
+            'message': f'✓ Importation réussie : {updated_count} engins traités pour le {date_str}'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
 
 @app.route('/files')
 def list_files():

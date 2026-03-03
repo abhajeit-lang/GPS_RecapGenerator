@@ -3,16 +3,12 @@ Report generation functions for hierarchy-based analytics.
 New reports: Comparative Atelier, Atelier Performance, Vehicle Efficiency, Project Overview
 """
 from datetime import datetime, date
-from models import db, VehicleActivity, Vehicle, Atelier, Project
+from models import db, VehicleActivity, Vehicle, Atelier, Project, RealWorkData
 from sqlalchemy import func
 
 def get_date_range_data(atelier_id, start_date, end_date):
     """
-    Get aggregated metrics for an atelier over a date range.
-    
-    Returns dict with:
-    - total_trips, total_km, total_working_time, total_course_time,
-    - total_attente_time, total_arret_time, vehicle_count, vehicles_data
+    Get aggregated metrics for an atelier over a date range, including real work hours.
     """
     # Get vehicles in this atelier
     vehicles = Vehicle.query.filter_by(atelier_id=atelier_id).all()
@@ -21,104 +17,91 @@ def get_date_range_data(atelier_id, start_date, end_date):
     if not vehicle_ids:
         return None
     
-    # Query activities for these vehicles in date range
+    # Query activities
     activities = VehicleActivity.query.filter(
         VehicleActivity.vehicle_code.in_(vehicle_ids),
         VehicleActivity.date >= start_date,
         VehicleActivity.date <= end_date
     ).all()
+
+    # Query REAL work data
+    real_data_records = RealWorkData.query.filter(
+        RealWorkData.vehicle_id.in_(vehicle_ids),
+        RealWorkData.date >= start_date,
+        RealWorkData.date <= end_date
+    ).all()
     
+    # Map real hours by vehicle
+    real_hours_map = {}
+    for r in real_data_records:
+        if r.vehicle_id not in real_hours_map:
+            real_hours_map[r.vehicle_id] = 0.0
+        real_hours_map[r.vehicle_id] += r.hours_real
+
     # Aggregate metrics
-    # Smart cycle detection now handles fractional cycles (0.5 or 1.0)
-    # No need to divide by 2 anymore
     total_trips = sum(a.trip_count for a in activities)
-    total_trips = round(total_trips, 1)  # Round to 1 decimal for display
+    total_trips = round(total_trips, 1)
     
     total_km_raw = sum(a.km_before + a.km_after for a in activities)
     total_km_out = sum(a.km_out_of_range for a in activities)
     total_km_work = total_km_raw - total_km_out
     
-    total_course = sum(a.duration_course for a in activities)  # seconds
+    total_course = sum(a.duration_course for a in activities)
     total_attente = sum(a.duration_attente for a in activities)
     total_arret = sum(a.duration_arret for a in activities)
     
-    total_working_time = total_course + total_attente  # seconds
+    total_working_time = total_course + total_attente
     total_time = total_working_time + total_arret
+    
+    total_real_hours = sum(real_hours_map.values())
     
     # Per-vehicle breakdown
     vehicles_data = []
     for v in vehicles:
         v_activities = [a for a in activities if a.vehicle_code == v.id]
-        if v_activities:
+        v_real_h = real_hours_map.get(v.id, 0.0)
+        
+        if v_activities or v_real_h > 0:
             v_trips = sum(a.trip_count for a in v_activities)
-            v_trips = round(v_trips, 1)  # Already fractional from smart detection
-            
             v_km_total = sum(a.km_before + a.km_after for a in v_activities)
-            v_km_out_of_range = sum(a.km_out_of_range for a in v_activities)
-            v_km_in_range = v_km_total - v_km_out_of_range
+            v_km_out = sum(a.km_out_of_range for a in v_activities)
+            v_working = sum(a.duration_course + a.duration_attente for a in v_activities)
+            v_total = v_working + sum(a.duration_arret for a in v_activities)
             
-            v_total_km = v_km_total # Total including out of range
-            
-            v_attente_count = sum(a.attente_count for a in v_activities)
-            v_course = sum(a.duration_course for a in v_activities)
-            v_attente = sum(a.duration_attente for a in v_activities)
-            v_arret = sum(a.duration_arret for a in v_activities)
-            v_working = v_course + v_attente
-            v_total = v_working + v_arret
+            discrepancy = v_working - v_real_h
             
             vehicles_data.append({
                 'id': v.id,
                 'name': v.name,
                 'category': v.category or 'Autre',
                 'movement_type': v.movement_type or 'Move',
-                'trips': v_trips,
-                'attente_count': v_attente_count,
-                'duration_attente': round(v_attente, 2),
-                'km': round(v_km_in_range, 2),
-                'total_km': round(v_total_km, 2),
-                'km_out_of_range': round(v_km_out_of_range, 2),
+                'trips': round(v_trips, 1),
+                'km': round(v_km_total - v_km_out, 2),
+                'total_km': round(v_km_total, 2),
                 'working_hours': round(v_working, 2),
-                'efficiency': round((v_working / v_total * 100) if v_total > 0 else 0, 1),
-                'utilization': round((v_course / v_working * 100) if v_working > 0 else 0, 1)
+                'real_hours': round(v_real_h, 2),
+                'discrepancy': round(discrepancy, 2),
+                'efficiency': round((v_working / v_total * 100) if v_total > 0 else 0, 1)
             })
     
-    # Recalculate avg distance based on LEGS or CYCLES? 
-    # avg distance per Cycle = Total Work KM / Total Cycles
     avg_trip_distance = round(total_km_work / total_trips, 2) if total_trips > 0 else 0
     efficiency_rate = round((total_working_time / total_time * 100) if total_time > 0 else 0, 1)
-    utilization_rate = round((total_course / total_working_time * 100) if total_working_time > 0 else 0, 1)
-    
-    # Find best producer (max cycles) and lowest activity (min cycles > 0)
-    best_producer = "N/A"
-    lowest_activity = "N/A"
-    
-    if vehicles_data:
-        # Best producer (highest trip count)
-        max_vehicle = max(vehicles_data, key=lambda v: v['trips'])
-        best_producer = f"{max_vehicle['id']} ({max_vehicle['trips']} cycles)"
-        
-        # Lowest activity (lowest trip count, excluding 0)
-        active_vehicles = [v for v in vehicles_data if v['trips'] > 0]
-        if active_vehicles:
-            min_vehicle = min(active_vehicles, key=lambda v: v['trips'])
-            lowest_activity = f"{min_vehicle['id']} ({min_vehicle['trips']} cycles)"
     
     return {
         'atelier_id': atelier_id,
         'vehicle_count': len(vehicles),
-        'total_trips': total_trips, # Now represents Cycles
-        'total_km': round(total_km_raw, 2), # Show raw total in overview
+        'total_trips': total_trips,
+        'total_km': round(total_km_raw, 2),
         'total_km_work': round(total_km_work, 2),
         'total_km_out': round(total_km_out, 2),
         'avg_trip_distance': avg_trip_distance,
         'working_hours': round(total_working_time, 2),
+        'real_hours': round(total_real_hours, 2),
+        'discrepancy': round(total_working_time - total_real_hours, 2),
         'course_hours': round(total_course, 2),
         'attente_hours': round(total_attente, 2),
         'arret_hours': round(total_arret, 2),
         'efficiency_rate': efficiency_rate,
-        'utilization_rate': utilization_rate,
-        'best_producer': best_producer,
-        'lowest_activity': lowest_activity,
         'vehicles': vehicles_data
     }
 
@@ -237,6 +220,7 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
     total_cycles = 0
     total_working_hours = 0
     total_working_hours_before = 0
+    total_real_hours_all = 0
     total_vehicles = 0
     
     for atelier in target_ateliers:
@@ -256,9 +240,21 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
         atelier_cycles = 0
         atelier_working_hours = 0
         atelier_working_hours_before = 0
+        atelier_real_hours = 0
+        
+        # Fetch RealWorkData for this date and atelier
+        real_data_records = RealWorkData.query.filter(
+            RealWorkData.vehicle_id.in_(vehicle_ids),
+            RealWorkData.date == target_date
+        ).all()
+        real_hours_map = {r.vehicle_id: r.hours_real for r in real_data_records}
         
         for v in vehicles:
             v_activity = next((a for a in activities if a.vehicle_code == v.id), None)
+            real_h = real_hours_map.get(v.id, 8.0) # Default to 8.0 if no entry? 
+            # User said "make 8h the value as default". 
+            # If there's no record in db, should we show 8h? 
+            # In get_real_work_data route, we return 8.0 as default.
             
             km_before = 0
             km_after = 0
@@ -289,8 +285,11 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
                 'km_after': round(km_after, 2),
                 'total_km': round(km_before + km_after, 2),
                 'cycles': round(cycles, 1),
-                'working_hours': round(working_hours, 2)
+                'working_hours': round(working_hours, 2),
+                'real_hours': round(real_h, 2),
+                'discrepancy': round(working_hours - real_h, 2)
             })
+            atelier_real_hours += real_h
             
         # Sort vehicles A-Z
         atelier_vehicles.sort(key=lambda x: x['id'])
@@ -303,7 +302,8 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
             'total_km': round(atelier_km_before + atelier_km_after, 2),
             'total_cycles': round(atelier_cycles, 1),
             'total_working_hours': round(atelier_working_hours, 2),
-            'total_working_hours_before': round(atelier_working_hours_before, 2)
+            'total_working_hours_before': round(atelier_working_hours_before, 2),
+            'total_real_hours': round(atelier_real_hours, 2)
         })
         
         total_km_before += atelier_km_before
@@ -311,6 +311,7 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
         total_cycles += atelier_cycles
         total_working_hours += atelier_working_hours
         total_working_hours_before += atelier_working_hours_before
+        total_real_hours_all += atelier_real_hours
         total_vehicles += len(vehicles)
 
     if not ateliers_data:
@@ -330,6 +331,7 @@ def generate_project_atelier_daily_report(project_id, atelier_id, target_date):
         'total_cycles': round(total_cycles, 1),
         'total_working_hours': round(total_working_hours, 2),
         'total_working_hours_before': round(total_working_hours_before, 2),
+        'total_real_hours': round(total_real_hours_all, 2),
         'vehicle_count': total_vehicles
     }
 
@@ -367,8 +369,14 @@ def generate_global_daily_report(target_date):
             vehicle_ids = [v.id for v in vehicles]
             activities = VehicleActivity.query.filter(
                 VehicleActivity.vehicle_code.in_(vehicle_ids),
-                VehicleActivity.date == target_date
+                ).all()
+            
+            # Fetch RealWorkData
+            real_data_records = RealWorkData.query.filter(
+                RealWorkData.vehicle_id.in_(vehicle_ids),
+                RealWorkData.date == target_date
             ).all()
+            real_hours_map = {r.vehicle_id: r.hours_real for r in real_data_records}
             
             # Removed "if not activities: continue" to show ateliers with no recorded activity
                 
@@ -380,7 +388,8 @@ def generate_global_daily_report(target_date):
                 'total_km': 0,
                 'total_working_hours': 0,
                 'working_hours_before': 0,
-                'cycles': 0
+                'cycles': 0,
+                'real_hours': 0
             }
             
             for v in vehicles:
@@ -409,16 +418,20 @@ def generate_global_daily_report(target_date):
                     'km_after': round(km_a, 2),
                     'total_km': round(km_b + km_a, 2),
                     'cycles': round(cyc, 1),
-                    'working_hours': round(working_hours, 2)
+                    'working_hours': round(working_hours, 2),
+                    'real_hours': round(real_hours_map.get(v.id, 8.0), 2),
+                    'discrepancy': round(working_hours - real_hours_map.get(v.id, 8.0), 2)
                 })
                 
                 # Accumulate totals
+                v_real = real_hours_map.get(v.id, 8.0)
                 atelier_data['km_before'] += km_b
                 atelier_data['km_after'] += km_a
                 atelier_data['total_km'] += (km_b + km_a)
                 atelier_data['total_working_hours'] += working_hours
                 atelier_data['working_hours_before'] += working_hours_before
                 atelier_data['cycles'] += cyc
+                atelier_data['real_hours'] += v_real
                     
             if atelier_data['vehicles']:
                 # Sort vehicles alphabetically by ID
@@ -431,6 +444,7 @@ def generate_global_daily_report(target_date):
                 atelier_data['total_working_hours'] = round(atelier_data['total_working_hours'], 2)
                 atelier_data['working_hours_before'] = round(atelier_data['working_hours_before'], 2)
                 atelier_data['cycles'] = round(atelier_data['cycles'], 1)
+                atelier_data['real_hours'] = round(atelier_data['real_hours'], 2)
                 
                 project_data['ateliers'].append(atelier_data)
                 
