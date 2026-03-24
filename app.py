@@ -1618,6 +1618,163 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
     story.append(info_table)
     story.append(Spacer(1, 5*mm))
     
+    # Calculate column widths for landscape A4 (842 points wide - margins)
+    total_width = landscape(A4)[0] - 20*mm
+    
+    # === VIOLATIONS SUMMARY PAGE (after-hours movement) ===
+    from reportlab.platypus import PageBreak
+    
+    # Yellow color palette for violations page
+    VIOLATION_HEADER_BG = colors.HexColor('#b45309')    # Dark amber header
+    VIOLATION_LIGHT_BG = colors.HexColor('#fef9c3')     # Very light yellow
+    VIOLATION_ROW_ALT = colors.HexColor('#fef08a')      # Light yellow alternate
+    VIOLATION_BORDER = colors.HexColor('#d97706')       # Amber border
+    VIOLATION_TEXT = colors.HexColor('#78350f')          # Dark brown text
+    
+    # Filter vehicles with ANY movement after 18:30
+    violation_records = [r for r in records if r.km_after > 0]
+    
+    if violation_records:
+        # Sort A-Z by vehicle code (global, no categories)
+        violation_records.sort(key=lambda r: r.vehicle_code)
+        
+        # Violations header
+        viol_header_data = [['⚠  RÉCAPITULATIF — ENGINS EN MOUVEMENT APRÈS 18:30']]
+        viol_header_table = Table(viol_header_data, colWidths=[landscape(A4)[0] - 20*mm])
+        viol_header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), VIOLATION_HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 14),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        story.append(viol_header_table)
+        story.append(Spacer(1, 3*mm))
+        
+        # Summary info
+        viol_info_data = [[
+            f'Nombre d\'engins en infraction: {len(violation_records)}',
+            f'Total engins: {len(records)}'
+        ]]
+        viol_info_table = Table(viol_info_data, colWidths=[(landscape(A4)[0] - 20*mm) / 2] * 2)
+        viol_info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), VIOLATION_LIGHT_BG),
+            ('TEXTCOLOR', (0, 0), (-1, -1), VIOLATION_TEXT),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, VIOLATION_BORDER),
+        ]))
+        story.append(viol_info_table)
+        story.append(Spacer(1, 4*mm))
+        
+        # Violations table
+        viol_col_widths = [
+            total_width * 0.08,   # ID
+            total_width * 0.30,   # Véhicule
+            total_width * 0.15,   # Matricule
+            total_width * 0.12,   # Catégorie
+            total_width * 0.15,   # Après 18:30 (KM)
+            total_width * 0.20,   # Après 18:30 (Heures)
+        ]
+        
+        viol_table_data = [[
+            'ID',
+            'Véhicule / Conducteur',
+            'Matricule',
+            'Catégorie',
+            'Après 18:30\n(KM)',
+            'Après 18:30\n(Heures)'
+        ]]
+        
+        viol_highlight_rows = []
+        viol_row_idx = 1
+        
+        for record in violation_records:
+            vehicle_obj = vehicles_dict.get(record.vehicle_code)
+            vehicle_name = vehicle_obj.name if vehicle_obj else '-'
+            matricule = vehicle_obj.matricule if vehicle_obj else '-'
+            category = vehicle_obj.category if vehicle_obj else '-'
+            
+            # Mark vehicles with > 20km after hours for extra highlighting
+            if record.km_after > 20:
+                viol_highlight_rows.append(viol_row_idx)
+            
+            viol_table_data.append([
+                record.vehicle_code,
+                Paragraph(vehicle_name, cell_style),
+                matricule,
+                category,
+                f"{record.km_after:.2f}",
+                format_decimal_hours(record.hours_after_20h)
+            ])
+            viol_row_idx += 1
+        
+        # Totals row
+        viol_total_km_after = sum(r.km_after for r in violation_records)
+        viol_total_hours_after = sum(r.hours_after_20h for r in violation_records)
+        viol_table_data.append([
+            'TOTAL', '', '', '',
+            f"{viol_total_km_after:.2f}",
+            format_decimal_hours(viol_total_hours_after)
+        ])
+        
+        viol_table = Table(viol_table_data, colWidths=viol_col_widths)
+        
+        viol_styles = [
+            # Header
+            ('BACKGROUND', (0, 0), (-1, 0), VIOLATION_HEADER_BG),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Data rows
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+            ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TEXTCOLOR', (0, 1), (-1, -2), VIOLATION_TEXT),
+            
+            # Alternating rows with yellow tones
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [VIOLATION_LIGHT_BG, VIOLATION_ROW_ALT]),
+            
+            # Totals row
+            ('BACKGROUND', (0, -1), (-1, -1), VIOLATION_HEADER_BG),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, VIOLATION_BORDER),
+            
+            # Padding
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ]
+        
+        # Extra highlighting for > 20km rows (darker yellow + bold)
+        for row in viol_highlight_rows:
+            viol_styles.append(('BACKGROUND', (0, row), (-1, row), colors.HexColor('#fbbf24')))
+            viol_styles.append(('FONTNAME', (0, row), (-1, row), 'Helvetica-Bold'))
+        
+        viol_table.setStyle(TableStyle(viol_styles))
+        story.append(viol_table)
+        story.append(Spacer(1, 3*mm))
+        
+        # Footer note for violations page
+        viol_note_style = ParagraphStyle('ViolNote', parent=styles['Normal'], fontSize=7, textColor=VIOLATION_TEXT)
+        story.append(Paragraph('* Lignes dorées = véhicules avec plus de 20 km après 18:30', viol_note_style))
+        
+        # Page break to separate from category-detailed pages
+        story.append(PageBreak())
+    
     # Group by category
     categories_dict = {}
     for record in records:
@@ -1629,8 +1786,6 @@ def generate_pdf_report_by_date(target_date, records, vehicles_dict):
             categories_dict[category] = []
         categories_dict[category].append(record)
     
-    # Calculate column widths for landscape A4 (842 points wide - margins)
-    total_width = landscape(A4)[0] - 20*mm
     col_widths = [
         total_width * 0.08,   # ID (short)
         total_width * 0.25,   # Nom (needs space for long names)
