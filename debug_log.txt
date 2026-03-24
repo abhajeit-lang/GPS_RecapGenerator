@@ -623,3 +623,105 @@ Config Key Found: True
 Applied Config: Min=0.5, Max=6.0, Movement=Move
 Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
 Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-04 10:29:21.479080 ---
+Config Key Found: True
+Applied Config: Min=0.5, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt']
+
+--- Processing C105 at 2026-03-04 15:27:46.723208 ---
+Config Key Found: True
+Applied Config: Min=0.5, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt']
+
+--- Processing C105 at 2026-03-05 10:26:32.021876 ---
+Config Key Found: True
+Applied Config: Min=0.5, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-06 10:17:21.831731 ---
+Config Key Found: True
+Applied Config: Min=0.5, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt']
+
+--- Processing C105 at 2026-03-06 10:19:00.175850 ---
+Config Key Found: True
+Applied Config: Min=0.5, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt']
+
+--- Processing C105 at 2026-03-07 10:30:39.195075 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-09 10:25:25.930661 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-10 10:08:42.764691 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-11 10:18:29.333019 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-12 10:21:01.834668 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-13 10:38:57.596959 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-14 13:08:40.555965 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-16 10:34:12.861818 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Attente', 'Course']
+
+--- Processing C105 at 2026-03-17 12:03:53.953278 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Course', 'Arrêt', 'Attente']
+
+--- Processing C105 at 2026-03-18 11:25:40.568398 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Arrêt', 'Attente', 'Arrêt']
+
+--- Processing C105 at 2026-03-24 09:25:50.657652 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Arrêt', 'Arrêt']
+
+--- Processing C105 at 2026-03-24 09:28:07.111709 ---
+Config Key Found: True
+Applied Config: Min=2.0, Max=6.0, Movement=Move
+Column Map: {'vehicle': 'Code', 'start_time': 'Heure de départ', 'stop_time': "Heure d'arrêt", 'caa': 'CAA', 'km': 'KM'}
+Sample CAA raw: ['Arrêt', 'Attente', 'Arrêt', 'Attente', 'Arrêt']
