@@ -332,38 +332,42 @@
 
         <!-- Real Data Tab -->
         <div id="real-data" class="tab-content">
-            <h3 style="color:#333; margin-bottom:20px;">⏱️ Saisie des Heures Réelles (Pointage Agent)</h3>
+            <h3 style="color:#333; margin-bottom:15px;">⏱️ Saisie des Heures Réelles (Pointage Agent)</h3>
 
-            <div
-                style="display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 15px; margin-bottom: 25px; align-items: end;">
+            <!-- Row 1: Date + Atelier -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 12px;">
                 <div class="form-group" style="margin-bottom:0;">
-                    <label for="realDataDate">Sélectionner la Date</label>
-                    <input type="date" id="realDataDate">
+                    <label for="realDataDate" style="font-size:13px; margin-bottom:4px; display:block;">📅 Date</label>
+                    <input type="date" id="realDataDate" style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
-                    <label for="realDataAtelier">Choisir un Atelier</label>
+                    <label for="realDataAtelier" style="font-size:13px; margin-bottom:4px; display:block;">🏗️ Atelier</label>
                     <select id="realDataAtelier"
-                        style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                        style="width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
                         <option value="">-- Sélectionner --</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label for="realDataDefaultHours" style="white-space:nowrap;">⏰ Heures par défaut</label>
+            </div>
+
+            <!-- Row 2: Default hours + Load button -->
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                <div style="display:flex; align-items:center; gap:8px; background:#f8f9fa; padding:6px 12px; border-radius:6px; border:1px solid #e9ecef;">
+                    <label for="realDataDefaultHours" style="font-size:12px; color:#555; white-space:nowrap; margin:0;">⏰ Heures par défaut :</label>
                     <input type="number" id="realDataDefaultHours" value="8" min="1" max="24" step="0.5"
-                        style="width: 80px; padding:10px; border:1px solid #ddd; border-radius:4px; text-align:center; font-weight:bold; font-size:14px;">
+                        style="width:60px; padding:5px; border:1px solid #ccc; border-radius:4px; text-align:center; font-weight:bold; font-size:13px;">
                 </div>
-                <button onclick="loadRealWorkData()" style="padding: 10px 20px;">🔍 Afficher / Initialiser</button>
+                <button onclick="loadRealWorkData()" style="padding:8px 18px; font-size:13px; white-space:nowrap;">🔍 Afficher / Initialiser</button>
             </div>
 
             <div id="realDataContainer" style="display:none;">
-                <div style="overflow-x: auto; margin-bottom: 20px;">
+                <div style="overflow-x: auto; margin-bottom: 15px;">
                     <table
                         style="width:100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
                         <thead>
                             <tr style="background: #667eea; color: white;">
-                                <th style="padding: 12px; text-align: left;">Code Engin</th>
-                                <th style="padding: 12px; text-align: left;">Nom</th>
-                                <th style="padding: 12px; text-align: center;">Heures Réelles (Agent)</th>
+                                <th style="padding: 10px 12px; text-align: left; font-size:13px;">Code Engin</th>
+                                <th style="padding: 10px 12px; text-align: left; font-size:13px;">Nom</th>
+                                <th style="padding: 10px 12px; text-align: center; font-size:13px;">Heures Réelles (Agent)</th>
                             </tr>
                         </thead>
                         <tbody id="realDataTableBody">
@@ -371,21 +375,18 @@
                         </tbody>
                     </table>
                 </div>
-                <button onclick="saveRealWorkData()" style="background: #28a745; width: 100%; margin-bottom: 30px;">💾
+                <button onclick="saveRealWorkData()" style="background: #28a745; width: 100%; padding: 10px; font-size:13px; margin-bottom: 20px;">💾
                     Enregistrer le Pointage</button>
             </div>
 
-            <hr style="margin: 30px 0; border:none; border-top:1px solid #ddd;">
+            <hr style="margin: 20px 0; border:none; border-top:1px solid #eee;">
 
-            <h3 style="color:#333; margin-bottom:20px;">📤 Importation en Masse</h3>
-            <div class="form-group">
-                <label>Importer un fichier Excel/CSV (Colonnes: ID_Engin, Heures_Réelles)</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="file" id="realDataFile" accept=".xlsx,.xls,.csv" style="flex:1;">
-                    <button onclick="importRealWorkData()" style="padding: 10px 20px; background: #6610f2;">📤
-                        Importer</button>
-                </div>
+            <h4 style="color:#555; margin-bottom:12px; font-size:14px;">📤 Importation en Masse</h4>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom:10px;">
+                <input type="file" id="realDataFile" accept=".xlsx,.xls,.csv" style="flex:1; font-size:12px;">
+                <button onclick="importRealWorkData()" style="padding: 8px 16px; background: #6610f2; font-size:13px; white-space:nowrap;">📤 Importer</button>
             </div>
+            <small style="color: #888; font-size:11px;">Format: colonnes ID_Engin et Heures_Réelles</small>
 
             <div class="loading" id="realDataLoading">
                 <div class="spinner"></div>
