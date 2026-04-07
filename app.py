@@ -2735,6 +2735,8 @@ def get_real_work_data():
         atelier = Atelier.query.get(atelier_id)
         if not atelier:
             return jsonify({'error': 'Atelier not found'}), 404
+        
+        default_hours = float(request.args.get('default_hours', 8.0))
             
         vehicles = atelier.vehicles
         existing_data = {r.vehicle_id: r.hours_real for r in RealWorkData.query.filter_by(date=target_date).all()}
@@ -2745,7 +2747,7 @@ def get_real_work_data():
                 'vehicle_id': v.id,
                 'vehicle_name': v.name,
                 'matricule': v.matricule,
-                'hours_real': existing_data.get(v.id, 8.0) # Default to 8.0
+                'hours_real': existing_data.get(v.id, default_hours)
             })
             
         return jsonify({'success': True, 'data': result})
